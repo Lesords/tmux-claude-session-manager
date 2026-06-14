@@ -39,7 +39,7 @@ fi
 
 self="${BASH_SOURCE[0]}"
 sel=$(emit_rows | fzf --ansi --delimiter='\t' --with-nth=3,4,5 \
-  --reverse --header='Claude sessions · enter: jump · ctrl-x: kill' \
+  --reverse --cycle --header='Claude sessions · enter: jump · ctrl-x: kill' \
   --preview="tmux capture-pane -ept {2}" --preview-window='right,62%,wrap' \
   --bind="ctrl-x:execute-silent(tmux kill-session -t {2})+reload($self --list)")
 
