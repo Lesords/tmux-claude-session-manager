@@ -29,3 +29,12 @@ session_hash() {
   fi
   printf '%s' "${out%% *}" | cut -c1-8
 }
+
+# claude_state_dir
+# Per-user directory holding one state file per pane (named by pane_id, e.g.
+# "%4"). XDG_RUNTIME_DIR (a per-user tmpfs, auto-cleaned) is preferred, falling
+# back to /tmp with the UID baked in so users on a shared host never collide.
+# Used by state.sh (writer) and picker.sh (reader).
+claude_state_dir() {
+  printf '%s/claude-pane-state-%s' "${XDG_RUNTIME_DIR:-/tmp}" "${UID:-$(id -u)}"
+}
