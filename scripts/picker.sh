@@ -109,20 +109,39 @@ sel=$(emit_rows | fzf --ansi --delimiter='\t' --with-nth=4,5,6 \
 [ -z "$sel" ] && exit 0
 pane_id=$(printf '%s' "$sel" | cut -f2)
 
-# Move the underlying parent client to the pane's window, then focus the pane.
-# The picker runs inside a popup; on exit the popup closes and the parent client
-# is left on the chosen pane (the Claude is already running there). The window_id
-# (@N) is globally unique across sessions, so switch-client lands the client on
-# the right window regardless of which session it lives in. Falls back to the
-# current client when @claude_parent is unset.
-window=$(tmux list-panes -a -F '#{pane_id}'$'\t''#{window_id}' 2>/dev/null |
-  awk -F'\t' -v p="$pane_id" '$1 == p { print $2; exit }')
-parent=$(tmux show-options -gqv @claude_parent 2>/dev/null)
-if [ -n "$window" ]; then
-  if [ -n "$parent" ]; then
-    tmux switch-client -c "$parent" -t "$window" 2>/dev/null
-  else
-    tmux switch-client -t "$window" 2>/dev/null
+# Jump to the chosen pane. Two cases:
+#   - The pane lives in a "popup-style" session: the launcher's `claude-<hash>`
+#     (@claude_session_prefix) or a popup tool like tmux-floax's `floax-<origin>`
+#     (@claude_popup_prefix). We must NOT switch the outer client into it
+#     full-screen; instead repurpose THIS picker popup to attach to that session
+#     — mirroring how the launcher/popup tool itself shows it, and leaving the
+#     outer client untouched. detach (prefix+d) or the tool's toggle closes it.
+#   - Otherwise (Claude running directly in a normal pane): move the parent
+#     client to that pane's window and focus it. window_id (@N) is global, so
+#     switch-client lands on the right window across sessions.
+prefix="$(get_tmux_option @claude_session_prefix 'claude-')"
+popup_prefix="$(get_tmux_option @claude_popup_prefix 'floax-')"
+target=$(tmux list-panes -a -F '#{pane_id}'$'\t''#{session_name}'$'\t''#{window_id}' 2>/dev/null |
+  awk -F'\t' -v p="$pane_id" '$1 == p { print $2 "\t" $3; exit }')
+session=${target%%$'\t'*}
+window=${target#*$'\t'}
+[ -z "$session" ] && exit 0
+
+# A prefix of "" disables that check (avoids `*` matching every session).
+is_popup=0
+{ [ -n "$prefix" ] && [[ "$session" == "$prefix"* ]]; } && is_popup=1
+{ [ -n "$popup_prefix" ] && [[ "$session" == "$popup_prefix"* ]]; } && is_popup=1
+
+if [ "$is_popup" -eq 1 ]; then
+  exec tmux attach-session -t "$session"
+else
+  parent=$(tmux show-options -gqv @claude_parent 2>/dev/null)
+  if [ -n "$window" ]; then
+    if [ -n "$parent" ]; then
+      tmux switch-client -c "$parent" -t "$window" 2>/dev/null
+    else
+      tmux switch-client -t "$window" 2>/dev/null
+    fi
   fi
+  tmux select-pane -t "$pane_id" 2>/dev/null
 fi
-tmux select-pane -t "$pane_id" 2>/dev/null

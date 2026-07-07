@@ -162,13 +162,23 @@ set -g @claude_list_key       'u'        # prefix key: open the picker
 set -g @claude_command        'claude'   # command run in new sessions
 set -g @claude_args           ''         # extra args appended to the command
 set -g @claude_session_prefix 'claude-'  # session name prefix (launcher only)
+set -g @claude_popup_prefix   'floax-'   # popup-session prefix (jump attaches in-popup)
 set -g @claude_popup_width     '90%'     # popup width
 set -g @claude_popup_height    '90%'     # popup height
 ```
 
-> `@claude_session_prefix` is used only by the **launcher** (it names the
-> detached session it creates). The **picker** does not depend on it — it
-> discovers Claude by process name (`comm == claude`) across all panes.
+> `@claude_session_prefix` names the detached sessions the **launcher** creates
+> (`claude-<hash>`), and the **picker** also uses it on jump — selecting one of
+> these sessions reuses the picker popup to attach to it (resume in-popup) rather
+> than switching your client into it full-screen. Discovery itself does not
+> depend on the prefix; the picker finds Claude by process name (`comm == claude`)
+> across all panes.
+
+> `@claude_popup_prefix` marks sessions owned by an external popup tool
+> (default `floax-`, matching [tmux-floax](https://github.com/omerxx/tmux-floax),
+> which names its sessions `floax-<origin>`). Jumping to a Claude in such a
+> session behaves the same as a launcher session — reuses the picker popup to
+> attach. Set it to your popup manager's session prefix, or empty to disable.
 
 For example, to skip permission prompts in launched sessions:
 
@@ -190,9 +200,14 @@ set -g @claude_args '--dangerously-skip-permissions'
   session running `claude`, records the window it came from in `@claude_origin`,
   and attaches to it in a popup. Its single pane is discovered by the picker
   like any other.
-- On **enter**, the picker moves your client to the chosen pane's window
-  (`window_id` is global across sessions) and focuses the pane — the Claude is
-  already running there, so nothing is re-attached or re-popped.
+- On **enter**, the picker jumps to the chosen pane. If it lives in a
+  popup-style session (the launcher's `claude-<hash>` or a popup tool's
+  `floax-<origin>` — i.e. name starting with `@claude_session_prefix` or
+  `@claude_popup_prefix`), the picker reuses its own popup to attach to that
+  session, leaving the outer client untouched (detach or the tool's toggle
+  closes it). Otherwise it moves your client to the pane's window (`window_id`
+  is global across sessions) and focuses the pane — the Claude is already
+  running there.
 - Pressing `prefix` + `u` **from inside a launcher popup** detaches that popup
   first (closing it), then reopens the picker full-size on the outer host
   client — so you never end up with a cramped popup-in-popup.

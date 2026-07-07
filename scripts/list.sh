@@ -6,21 +6,27 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/helpers.sh"
 
 prefix="$(get_tmux_option @claude_session_prefix 'claude-')"
+popup_prefix="$(get_tmux_option @claude_popup_prefix 'floax-')"
 w="$(get_tmux_option @claude_popup_width '90%')"
 h="$(get_tmux_option @claude_popup_height '90%')"
 
-# The session of a client attached to a prefixed session — i.e. the popup we are
-# inside, if any. Empty when invoked from a normal (non-popup) pane.
+# The session of a client attached to a popup-style session (launcher's
+# `claude-` or a popup tool like floax's `floax-`). tmux has no "is popup"
+# attribute — popups are transient client overlays, so the session name prefix
+# is the only persistent marker (floax itself detects its sessions by `^floax-`).
+# Empty when invoked from a normal (non-popup) pane.
 nested_session() {
   tmux list-clients -F '#{client_name} #{session_name}' 2>/dev/null |
-    awk -v p="$prefix" 'index($2, p) == 1 { print $2; exit }'
+    awk -v p="$prefix" -v pp="$popup_prefix" \
+      'index($2, p) == 1 || (pp != "" && index($2, pp) == 1) { print $2; exit }'
 }
 
-# A client NOT attached to a prefixed session — the outer client that should host
-# the picker popup.
+# A client NOT attached to a popup-style session — the outer client that should
+# host the picker popup.
 host_client() {
   tmux list-clients -F '#{client_name} #{session_name}' 2>/dev/null |
-    awk -v p="$prefix" 'index($2, p) != 1 { print $1; exit }'
+    awk -v p="$prefix" -v pp="$popup_prefix" \
+      'index($2, p) != 1 && !(pp != "" && index($2, pp) == 1) { print $1; exit }'
 }
 
 # If we are inside a session popup, close it (detach its client)
