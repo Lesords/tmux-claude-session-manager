@@ -100,8 +100,10 @@ fi
 self="${BASH_SOURCE[0]}"
 export FZF_DEFAULT_OPTS=''
 sel=$(emit_rows | fzf --ansi --delimiter='\t' --with-nth=4,5,6 \
-  --reverse --cycle --header='Claude sessions · enter: jump · ctrl-x: kill claude' \
+  --reverse --cycle \
+  --header='Claude sessions · enter: jump · ctrl-x: kill claude · ctrl-j/k: scroll preview' \
   --preview="tmux capture-pane -e -J -p -t {2}" --preview-window='right,62%' \
+  --bind='ctrl-j:preview-down,ctrl-k:preview-up' \
   --bind="ctrl-x:execute-silent(kill {3})+reload($self --list)")
 
 [ -z "$sel" ] && exit 0
