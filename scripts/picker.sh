@@ -36,8 +36,9 @@ fzf_options="$(get_tmux_option @claude_fzf_options '')"
 # window, while a loose pane keeps the shell that hosted it. The reload waits a
 # beat so the supervisor has dropped the agent from `claude agents --json`.
 sel=$("$DIR/agents.sh" | fzf --ansi --delimiter='\t' --with-nth=5,6,7,8 \
-  --reverse --cycle --header='Claude agents · enter: jump · ctrl-x: kill' \
-  --preview='tmux capture-pane -ept {2}' --preview-window='up,70%,follow' \
+  --reverse --cycle --header='Claude agents · enter: jump · ctrl-x: kill · ctrl-j/k: scroll preview' \
+  --preview='tmux capture-pane -e -J -p -t {2}' --preview-window='up,70%' \
+  --bind='ctrl-j:preview-down,ctrl-k:preview-up' \
   --bind="ctrl-x:execute-silent(kill {3})+reload(sleep 0.3; $self --list)" \
   ${extra_opts[@]+"${extra_opts[@]}"})
 
