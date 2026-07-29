@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Launch (or re-attach to) a Claude session for a directory, shown in a popup.
-# Args: <dir> [origin-window-id]   (both expanded by run-shell in the binding)
+# Args: <dir> [origin-window-id] [origin-client]   (expanded by run-shell)
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=helpers.sh
@@ -8,6 +8,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 path="${1:-$PWD}"
 window="${2:-}"
+client="${3:-}"
 
 prefix="$(get_tmux_option @claude_session_prefix 'claude-')"
 cmd="$(get_tmux_option @claude_command 'claude')"
@@ -34,4 +35,10 @@ fi
 # Record which window launched it, so the picker can jump back here later.
 [ -n "$window" ] && tmux set-option -t "$session" @claude_origin "$window"
 
-tmux display-popup -w "$w" -h "$h" -E "tmux attach-session -t '$session'"
+# Pin the popup to the client that pressed the key (falls back to tmux's
+# default active client when unknown), so it opens on the right terminal.
+if [ -n "$client" ]; then
+  tmux display-popup -c "$client" -w "$w" -h "$h" -E "tmux attach-session -t '$session'"
+else
+  tmux display-popup -w "$w" -h "$h" -E "tmux attach-session -t '$session'"
+fi
