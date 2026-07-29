@@ -35,7 +35,8 @@ done)"
   printf '%s\n' "$mtimes"
   printf '%s\n' "$rows" | sed $'s/^/A\t/'
 } | awk -F'\t' -v now="$(date +%s)" -v home="$HOME" \
-  -v prefix="$(get_tmux_option @claude_session_prefix 'claude-')" '
+  -v prefix="$(get_tmux_option @claude_session_prefix 'claude-')" \
+  -v pp="$(get_tmux_option @claude_popup_prefix 'floax-')" '
   $1 == "P" { tty_of[$2] = $3; next }
   $1 == "T" { sub(/^\/dev\//, "", $2); pane[$2] = $3; sess[$2] = $4; loc[$2] = $5; next }
   $1 == "M" { seen_at[$2] = $3; next }
@@ -49,7 +50,10 @@ done)"
     else                      { icon = "\033[90m●\033[0m   ?    "; rank = 2 }  # grey   - unrecognised status
 
     age = (seen_at[$4] != "") ? int((now - seen_at[$4]) / 60) "m" : "-"
-    kind = (index(sess[tty], prefix) == 1) ? "dedicated" : "loose"
+    # dedicated: a claude-* session this plugin launched, or an external
+    # popup-tool session (e.g. tmux-floax floax-*) -- the picker resumes
+    # either in-place via attach-session. pp guard: index(x,"")==1 matches all.
+    kind = ((index(sess[tty], prefix) == 1) || (pp != "" && index(sess[tty], pp) == 1)) ? "dedicated" : "loose"
 
     path = $5
     if (index(path, home) == 1) path = "~" substr(path, length(home) + 1)

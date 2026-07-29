@@ -6,6 +6,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$DIR/helpers.sh"
 
 prefix="$(get_tmux_option @claude_session_prefix 'claude-')"
+popup_prefix="$(get_tmux_option @claude_popup_prefix 'floax-')"
 w="$(get_tmux_option @claude_popup_width '90%')"
 h="$(get_tmux_option @claude_popup_height '90%')"
 
@@ -28,8 +29,19 @@ open_picker() {
   fi
 }
 
-case "$my_session" in
-"$prefix"*)
+# A popup-style session: the launcher's `claude-` prefix or an external popup
+# tool's prefix (e.g. tmux-floax's `floax-*`). tmux has no "is popup" attribute,
+# so the name prefix is the only marker (floax itself detects its sessions by
+# `^floax-`). Empty prefixes are skipped so ""* can't match every session.
+is_popup_session() {
+  local session="${1:-}"
+  [ -z "$session" ] && return 1
+  { [ -n "$prefix" ] && [[ "$session" == "$prefix"* ]]; } && return 0
+  { [ -n "$popup_prefix" ] && [[ "$session" == "$popup_prefix"* ]]; } && return 0
+  return 1
+}
+
+if is_popup_session "$my_session"; then
   # Inside a session popup: close it, then reopen the picker on the outer client.
   #
   # display-popup returns to its caller *before* tmux finishes destroying the
@@ -58,12 +70,10 @@ case "$my_session" in
     sleep 0.1
   done
   exit "$rc"
-  ;;
-*)
+else
   # Normal case: this client is already the host, with no overlay to race.
   host="$me"
   tmux set-option -g @claude_parent "$host"
-  ;;
-esac
+fi
 
 open_picker "$host"
