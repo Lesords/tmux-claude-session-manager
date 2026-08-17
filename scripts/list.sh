@@ -16,17 +16,17 @@ h="$(get_tmux_option @claude_popup_height '90%')"
 # open in another window), a global scan can grab an unrelated client's session
 # and detach it instead of the one this invocation actually cares about.
 me="${1:-}"
+origin_pane="${2:-}"
 my_session="$(tmux list-clients -F '#{client_name} #{session_name}' 2>/dev/null |
   awk -v me="$me" '$1 == me { print $2; exit }')"
 
-# open_picker <host>  — show the picker popup on <host>, or on the default client
-# when <host> is empty. Returns display-popup's own exit status.
+# open_picker <host> — popup on <host> (default client when empty); floax-style
+# rounded border in the theme accent (@selected). Returns display-popup status.
 open_picker() {
-  if [ -n "$1" ]; then
-    tmux display-popup -c "$1" -w "$w" -h "$h" -E "$DIR/picker.sh"
-  else
-    tmux display-popup -w "$w" -h "$h" -E "$DIR/picker.sh"
-  fi
+  local title=' Claude agents · enter: jump · ctrl-x: kill · ctrl-j/k: scroll preview '
+  local args=()
+  [ -n "$1" ] && args+=(-c "$1")
+  tmux display-popup "${args[@]}" -w "$w" -h "$h" -b rounded -S 'fg=#{@selected}' -s 'fg=default' -T "$title" -E "${origin_pane:+CLAUDE_ORIGIN_PANE=$origin_pane }$DIR/picker.sh"
 }
 
 # A popup-style session: the launcher's `claude-` prefix or an external popup

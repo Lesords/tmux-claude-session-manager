@@ -20,5 +20,6 @@ tmux bind-key "$launch_key" \
 
 # Open the session picker. When pressed from inside a session popup, list.sh
 # closes that popup first so the picker opens full-size on the outer client.
+# pane_id lets the list mark the invoking pane (yellow "*").
 tmux bind-key "$list_key" \
-  run-shell "$CURRENT_DIR/scripts/list.sh '#{q:client_name}'"
+  run-shell "$CURRENT_DIR/scripts/list.sh '#{q:client_name}' '#{pane_id}'"

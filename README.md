@@ -77,6 +77,12 @@ Inside the picker:
 
 Agents needing your attention (`waiting`, `idle`) sort to the top.
 
+The list styling follows tmux-scout: status tags `W:WAIT` (red — needs your
+input) / `BUSY` (yellow) / `IDLE` (blue) / `?` (grey), then AGENT (product
+name in brand color), WINDOW (tmux window name), PROJECT (directory
+basename), TITLE (agent session name) columns, a yellow `*` on the pane the
+picker was opened from, and a relative age at the end of each row.
+
 Every running Claude gets its own row — the picker identifies each by its process,
 not by its tmux session. So several agents in one project all show up separately,
 as does a Claude you started by hand in an ordinary pane.
@@ -91,10 +97,12 @@ set -g @claude_list_key       'u'        # prefix key: open the picker
 set -g @claude_command        'claude'   # command run in new sessions
 set -g @claude_args           ''         # extra args appended to the command
 set -g @claude_session_prefix 'claude-'  # tmux session name prefix
-set -g @claude_popup_width     '90%'     # popup width
-set -g @claude_popup_height    '90%'     # popup height
+set -g @claude_popup_width     '90%'     # popup width (launch & picker popups)
+set -g @claude_popup_height    '90%'     # popup height (launch & picker popups)
 set -g @claude_fzf_options    ''         # extra options passed to the fzf picker
 ```
+
+The picker popup border uses `#{@selected}` when a theme plugin defines it.
 
 For example, to skip permission prompts in launched sessions:
 
