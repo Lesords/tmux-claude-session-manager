@@ -63,7 +63,7 @@ if [ "$tmax" -lt 10 ]; then
 fi
 [ "$tw" -gt "$tmax" ] && tw=$tmax
 
-sorted=$(printf '%s\n' "$stream" | awk -F'\t' -v now="$(date +%s)" -v home="$HOME" -v pw="$pw" -v tw="$tw" -v winn="$win_w" \
+sorted=$(printf '%s\n' "$stream" | awk -F'\t' -v now="$(date +%s)" -v home="$HOME" -v pw="$pw" -v tw="$tw" -v winn="$win_w" -v me="$(tmux display-message -p '#{session_name}' 2>/dev/null)" \
   -v prefix="$(get_tmux_option @claude_session_prefix 'claude-')" \
   -v pp="$(get_tmux_option @claude_popup_prefix 'floax-')" '
   $1 == "P" { tty_of[$2] = $3; next }
@@ -102,11 +102,14 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' -v now="$(date +%s)" -v home="$HOM
     t = "\033[2m\"" sprintf("%-" tw "s", t) "\"\033[0m"
 
     # Visible fields 6..11; field 5 (sort minutes) hidden. WINDOW cut to
-    # winn, PROJECT never cut.
+    # winn, PROJECT never cut. Same-session windows are bold white (bold,
+    # not bright — 97 degrades to plain 37 on palettes without bright
+    # colors), cross-session ones dim grey.
     win = (wname[tty] != "") ? wname[tty] : "-"
     if (length(win) > winn) win = substr(win, 1, winn - 1) "~"
+    wc = (sess[tty] == me) ? "1;37" : "90"
     proj = pseg[split(path, pseg, "/")]
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t\033[36m%-" winn "s\033[0m\t\033[37m%-" pw "s\033[0m\t%s\t\033[2m%3s\033[0m\n",
+    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t\033[" wc "m%-" winn "s\033[0m\t\033[37m%-" pw "s\033[0m\t%s\t\033[2m%3s\033[0m\n",
       rank, pane[tty], $2, kind, age, icon, ag, win, proj, t, disp
   }
 ' | sort -t$'\t' -k1,1n -k5,5n)
