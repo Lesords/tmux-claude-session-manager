@@ -15,7 +15,7 @@
 #   Fields 1-5 are hidden via fzf's --with-nth=6..11 — the visible fields
 #   stay consecutive so every column gap is one space (a hidden field between
 #   two shown ones leaves a double gap). age_disp ("45s"/"5m"/"2h") ends the
-#   line. CLAUDE_ORIGIN_PANE (exported by list.sh) marks the invoking pane.
+#   line.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=helpers.sh
@@ -54,7 +54,7 @@ read -r pw tw nw < <(printf '%s\n' "$stream" | awk -F'\t' '
 # its natural width (cap 20), TITLE the rest (cap 50); when tight, WINDOW
 # shrinks first (floor 8). Unknown width (9999) just skips the squeezing.
 cw="$(tput cols 2>/dev/null </dev/tty || tmux display-message -p '#{client_width}' 2>/dev/null || echo 9999)"
-free=$((cw - 22 - pw))                       # fixed cols + joins: mark/STAT/AGENT/AGE/quotes
+free=$((cw - 22 - pw))                       # fixed cols + joins: dot+STAT/AGENT/AGE/quotes
 win_w=$nw; [ "$win_w" -gt 20 ] && win_w=20
 tmax=$((free - win_w)); [ "$tmax" -gt 50 ] && tmax=50
 if [ "$tmax" -lt 10 ]; then
@@ -63,7 +63,7 @@ if [ "$tmax" -lt 10 ]; then
 fi
 [ "$tw" -gt "$tmax" ] && tw=$tmax
 
-sorted=$(printf '%s\n' "$stream" | awk -F'\t' -v now="$(date +%s)" -v home="$HOME" -v pw="$pw" -v tw="$tw" -v winn="$win_w" -v cur="${CLAUDE_ORIGIN_PANE:-}" \
+sorted=$(printf '%s\n' "$stream" | awk -F'\t' -v now="$(date +%s)" -v home="$HOME" -v pw="$pw" -v tw="$tw" -v winn="$win_w" \
   -v prefix="$(get_tmux_option @claude_session_prefix 'claude-')" \
   -v pp="$(get_tmux_option @claude_popup_prefix 'floax-')" '
   $1 == "P" { tty_of[$2] = $3; next }
@@ -73,12 +73,13 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' -v now="$(date +%s)" -v home="$HOM
     tty = tty_of[$2]
     if (tty == "" || !(tty in pane)) next   # this Claude is not running inside tmux
 
-    # Status tags (red = needs you, yellow = working, blue = idle, grey = ?).
-    # WAIT, not tmux-scout W:WAIT: no ANS/PLAN/APP split in this data source.
-    if      ($3 == "waiting") { icon = "\033[31mWAIT\033[0m"; rank = 0 }
-    else if ($3 == "idle")    { icon = "\033[34mIDLE\033[0m"; rank = 1 }
-    else if ($3 == "busy")    { icon = "\033[33mBUSY\033[0m"; rank = 3 }
-    else                      { icon = "\033[90m?   \033[0m"; rank = 2 }
+    # Status: colored dot + white label. The dot carries the traffic-light
+    # color (red = needs you, green = done, yellow = working, grey = ?); the
+    # label stays white for readability on any background.
+    if      ($3 == "waiting") { icon = "\033[1;31m●\033[0m \033[37mWAIT\033[0m"; rank = 0 }
+    else if ($3 == "idle")    { icon = "\033[32m●\033[0m \033[37mIDLE\033[0m"; rank = 1 }
+    else if ($3 == "busy")    { icon = "\033[33m●\033[0m \033[37mBUSY\033[0m"; rank = 3 }
+    else                      { icon = "\033[90m●\033[0m \033[37m?\033[0m  "; rank = 2 }
 
     age = "-" ; disp = "-"                                   # sort minutes / display
     if (seen_at[$4] != "") {
@@ -91,9 +92,6 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' -v now="$(date +%s)" -v home="$HOM
     kind = ((index(sess[tty], prefix) == 1) || (pp != "" && index(sess[tty], pp) == 1)) ? "dedicated" : "loose"
 
     ag = "\033[38;5;173mclaude\033[0m"   # AGENT: product name; only claude here
-
-    # Yellow "*" marks the invoking pane; two spaces keep STATUS aligned.
-    icon = ((cur != "" && pane[tty] == cur) ? "\033[33m*\033[0m " : "  ") icon
 
     path = $5
     if (index(path, home) == 1) path = "~" substr(path, length(home) + 1)
