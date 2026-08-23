@@ -4,11 +4,11 @@
 #   picker.sh           fzf picker; on enter, jumps to the chosen agent.
 #   picker.sh --list    print the rows only (used by fzf's ctrl-x reload).
 #
-# Rows come from agents.sh, which pairs each running Claude with the tmux pane it
-# occupies. Two kinds of row jump differently:
-#   dedicated  a Claude in a `claude-*` session this plugin launched — resumed in
+# Rows come from agents.sh, which reads the @pane_* options that
+# tmux-agent-sidebar's hooks maintain. Two kinds of row jump differently:
+#   dedicated  an agent in a `claude-*` session this plugin launched — resumed in
 #              the popup, over the window it was launched from.
-#   loose      a Claude running in any other pane — focused in place.
+#   loose      an agent running in any other pane — focused in place.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=helpers.sh
@@ -16,12 +16,10 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 [ "${1:-}" = '--list' ] && exec "$DIR/agents.sh"
 
-for tool in fzf jq claude; do
-  command -v "$tool" >/dev/null 2>&1 || {
-    tmux display-message "tmux-claude-session-manager: $tool is required for the picker"
-    exit 0
-  }
-done
+command -v fzf >/dev/null 2>&1 || {
+  tmux display-message "tmux-claude-session-manager: fzf is required for the picker"
+  exit 0
+}
 
 self="$DIR/picker.sh"
 export FZF_DEFAULT_OPTS=''
@@ -32,9 +30,9 @@ extra_opts=()
 fzf_options="$(get_tmux_option @claude_fzf_options '')"
 [ -n "$fzf_options" ] && eval "extra_opts=($fzf_options)"
 
-# ctrl-x kills the Claude process itself: a dedicated session dies with its last
+# ctrl-x kills the agent process itself: a dedicated session dies with its last
 # window, while a loose pane keeps the shell that hosted it. The reload waits a
-# beat so the supervisor has dropped the agent from `claude agents --json`.
+# beat so the pane options reflect the kill before the list refreshes.
 # Borderless fzf: the popup border comes from the list.sh display-popup.
 sel=$("$DIR/agents.sh" | fzf --ansi \
   --delimiter='\t' --with-nth=6,7,8,9,10,11 \
