@@ -23,9 +23,9 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 stream=$(
   {
     ps -Ao pid=,tty=,comm= 2>/dev/null | awk '$3 ~ /^(claude|opencode|codex)/ { print "P\t" $1 "\t" $2 }'
-    tmux list-panes -a -F '#{pane_id}|#{@pane_agent}|#{@pane_status}|#{@pane_cwd}|#{@pane_prompt}|#{@pane_started_at}|#{session_name}|#{window_name}|#{pane_tty}' 2>/dev/null | tr '|' '\t' | sed $'s/^/T\t/'
+    tmux list-panes -a -F '#{pane_id}|#{@pane_agent}|#{@pane_status}|#{@pane_cwd}|#{@pane_prompt}|#{@pane_started_at}|#{session_name}|#{window_name}|#{pane_tty}|#{@pane_wait_reason}|#{@pane_notification_run_id}' 2>/dev/null | tr '|' '\t' | sed $'s/^/T\t/'
   } | awk -F'\t' -v OFS='\t' '$1 == "P" { if (NF > 3) { c = $3; for (i = 4; i <= NF; i++) c = c " " $i; $3 = c } print; next }
-       $1 == "T" { if (NF > 10) { m = $6; for (i = 7; i <= NF - 4; i++) m = m " "; $6 = m; NF = 10 } print }'
+       $1 == "T" { if (NF > 12) { m = $6; for (i = 7; i <= NF - 6; i++) m = m " "; $6 = m; NF = 12 } print }'
 )
 
 # Adaptive column widths: project basename (floor 7), agent name (floor 6),
@@ -84,17 +84,25 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' \
     if ($3 == "") next                        # not an agent pane
     tty = $10; sub(/^\/dev\//, "", tty)
 
-    # Status: colored dot + white label (red = needs you, green = idle,
-    # yellow = working, grey = detached background run).
+    # Status: colored dot + white label (red = needs you, yellow = working,
+    # grey = detached background run, green = parked at the prompt).
+    # Rank orders the list: waiting first (actionable), running next (live),
+    # parked sessions sink.
     if      ($4 == "waiting")    { icon = "\033[1;31m●\033[0m \033[37mWAIT\033[0m"; rank = 0 }
-    else if ($4 == "idle")       { icon = "\033[32m●\033[0m \033[37mIDLE\033[0m"; rank = 1 }
-    else if ($4 == "running")    { icon = "\033[33m●\033[0m \033[37mBUSY\033[0m"; rank = 3 }
+    else if ($4 == "running")    { icon = "\033[33m●\033[0m \033[37mBUSY\033[0m"; rank = 1 }
     else if ($4 == "background") { icon = "\033[90m●\033[0m \033[37mBG\033[0m  "; rank = 2 }
+    else if ($4 == "idle")       { icon = "\033[32m●\033[0m \033[37mIDLE\033[0m"; rank = 3 }
     else                         { icon = "\033[90m●\033[0m \033[37m?\033[0m  "; rank = 2 }
 
-    # Age since the agent turn started ("45s"/"5m"/"2h"); sort minutes in field 5.
+    # Age since the last agent event ("45s"/"5m"/"2h"); sort minutes in
+    # field 5. started_at only exists mid-turn, so fall back to the
+    # notification-run stamp (epoch ms, refreshed on lifecycle events) and
+    # take whichever is newer.
     age = "-" ; disp = "-" ; mins = 99999
-    if ($7 ~ /^[0-9]+$/ && $7 > 0) {
+    ts = 0
+    if ($7 ~ /^[0-9]+$/) ts = $7
+    if ($12 ~ /^[0-9]+$/ && int($12 / 1000) > ts) ts = int($12 / 1000)
+    if (ts > 0) {
       s = now - ts; if (s < 0) s = 0
       mins = int(s / 60)
       disp = (s < 60) ? s "s" : (s < 3600) ? int(s/60) "m" : int(s/3600) "h"
@@ -111,7 +119,10 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' \
     if (index(path, home) == 1) path = "~" substr(path, length(home) + 1)
     proj = dpad(pseg[split(path, pseg, "/")], pw)
 
+    # Title: last prompt/response; fall back to the wait reason ("session_resumed")
+    # for resumed sessions that never recorded one.
     t = $6; gsub(/[\t\n\r]/, " ", t)
+    if (t == "") { t = $11; gsub(/[\t\n\r]/, " ", t) }
     if (t == "") t = "-"
     t = "\033[2m\"" dpad(dcut(t, tw - 3, "..."), tw) "\"\033[0m"
 
