@@ -29,12 +29,22 @@ stream=$(
 )
 
 # Adaptive column widths: project basename (floor 7), agent name (floor 6),
-# window name. Title is a fixed 30 (+2 quotes).
+# window name. Title is a fixed 30 (+2 quotes). Widths are DISPLAY widths —
+# CJK/fullwidth chars occupy 2 terminal cells, so plain length() would pad
+# short and skew every column to the right.
 tw=30
 read -r pw nw aw < <(printf '%s\n' "$stream" | awk -F'\t' '
-  $1 == "T" && $3 != "" { n = split($5, seg, "/"); if (length(seg[n]) > w) w = length(seg[n])
-                          if (length($3) > a) a = length($3) }
-  $1 == "T" { if (length($9) > n_) n_ = length($9) }
+  function dwidth(s,   i, n, w, c) {          # terminal cells a string occupies
+    w = 0; n = length(s)
+    for (i = 1; i <= n; i++) {
+      c = substr(s, i, 1)
+      w += (c ~ /[　-〿ぁ-ヿ一-鿿㐀-䶿가-힣豈-﫻！-｠]/) ? 2 : 1
+    }
+    return w
+  }
+  $1 == "T" && $3 != "" { n = split($5, seg, "/"); if ((l = dwidth(seg[n])) > w) w = l
+                          if ((l = dwidth($3)) > a) a = l }
+  $1 == "T" { if ((l = dwidth($9)) > n_) n_ = l }
   END { print (w<7?7:w), (n_<1?1:n_), (a<6?6:a) }')
 
 # Fit to the popup width: tput on /dev/tty gives the REAL width (popups are
@@ -42,6 +52,7 @@ read -r pw nw aw < <(printf '%s\n' "$stream" | awk -F'\t' '
 # WINDOW shrinks first (floor 8); unknown width (9999) skips the squeezing.
 cw="$(tput cols 2>/dev/null </dev/tty || tmux display-message -p '#{client_width}' 2>/dev/null || echo 9999)"
 win_w=$nw; [ "$win_w" -gt 20 ] && win_w=20
+[ "$win_w" -lt 6 ] && win_w=6    # never narrower than the WINDOW label itself
 if [ "$cw" -lt 9999 ]; then
   max_win=$((cw - pw - aw - 45))    # STAT + TITLE + AGE + gaps take the rest
   [ "$win_w" -gt "$max_win" ] && win_w=$max_win
@@ -52,6 +63,22 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' \
   -v now="$(date +%s)" -v home="$HOME" -v pw="$pw" -v tw="$tw" -v winn="$win_w" -v aw="$aw" \
   -v prefix="$(get_tmux_option @claude_session_prefix 'claude-')" \
   -v pp="$(get_tmux_option @claude_popup_prefix 'floax-')" '
+  # Display-width helpers: CJK/fullwidth chars fill 2 terminal cells, so all
+  # column math below runs on cells, not characters.
+  function dwc(c) { return (c ~ /[　-〿ぁ-ヿ一-鿿㐀-䶿가-힣豈-﫻！-｠]/) ? 2 : 1 }
+  function dwidth(s,   i, n, w) { w = 0; n = length(s)
+    for (i = 1; i <= n; i++) w += dwc(substr(s, i, 1)); return w }
+  function dpad(s, w,   k) { k = w - dwidth(s); while (k-- > 0) s = s " "; return s }
+  function dcut(s, maxw, suf,   i, n, c, out, w, cw) {
+    if (dwidth(s) <= maxw) return s
+    out = ""; w = 0; n = length(s); maxw -= length(suf)
+    for (i = 1; i <= n; i++) {
+      c = substr(s, i, 1); cw = dwc(c)
+      if (w + cw > maxw) break
+      out = out c; w += cw
+    }
+    return out suf
+  }
   $1 == "P" { if (!($3 in pid_of)) pid_of[$3] = $2; next }        # tty -> pid
   $1 == "T" {
     if ($3 == "") next                        # not an agent pane
@@ -68,32 +95,28 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' \
     # Age since the agent turn started ("45s"/"5m"/"2h"); sort minutes in field 5.
     age = "-" ; disp = "-" ; mins = 99999
     if ($7 ~ /^[0-9]+$/ && $7 > 0) {
-      s = now - $7; if (s < 0) s = 0
+      s = now - ts; if (s < 0) s = 0
       mins = int(s / 60)
       disp = (s < 60) ? s "s" : (s < 3600) ? int(s/60) "m" : int(s/3600) "h"
     }
 
-    # dedicated: plugin/floax-launched session, resumed in-place by the picker;
-    # anything else is focused where it lives.
     kind = ((index($8, prefix) == 1) ||
             (pp != "" && index($8, pp) == 1)) ? "dedicated" : "loose"
 
-    win = ($9 != "") ? $9 : "-"
-    if (length(win) > winn) win = substr(win, 1, winn - 1) "~"
+    win = dpad(dcut(($9 != "") ? $9 : "-", winn - 1, "~"), winn)
 
-    ag = "\033[38;5;173m" sprintf("%-" aw "s", $3) "\033[0m"
+    ag = "\033[38;5;173m" dpad($3, aw) "\033[0m"
 
     path = $5
     if (index(path, home) == 1) path = "~" substr(path, length(home) + 1)
-    proj = pseg[split(path, pseg, "/")]
+    proj = dpad(pseg[split(path, pseg, "/")], pw)
 
     t = $6; gsub(/[\t\n\r]/, " ", t)
     if (t == "") t = "-"
-    if (length(t) > tw) t = substr(t, 1, tw - 3) "..."
-    t = "\033[2m\"" sprintf("%-" tw "s", t) "\"\033[0m"
+    t = "\033[2m\"" dpad(dcut(t, tw - 3, "..."), tw) "\"\033[0m"
 
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t\033[37m%-" winn "s\033[0m\t\033[37m%-" pw "s\033[0m\t%s\t\033[2m%3s\033[0m\n",
-      rank, $2, pid_of[tty], kind, mins, icon, ag, win, proj, t, disp
+    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t\033[37m%s\033[0m\t\033[37m%s\033[0m\t%s\t\033[2m%s\033[0m\n",
+      rank, $2, pid_of[tty], kind, mins, icon, ag, win, proj, t, dpad(disp, 4)
   }
 ' | sort -t$'\t' -k1,1n -k5,5n)
 # rank asc (what needs you floats up), then least-recently-started first within
@@ -101,5 +124,5 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' \
 
 printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' '' '' '' '' '' '  STAT' \
   "$(printf '%-*s' "$aw" AGENT)" "$(printf '%-*s' "$win_w" WINDOW)" \
-  "$(printf '%-*s' "$pw" PROJECT)" "$(printf '%-*s' $((tw + 2)) TITLE)" 'AGE'
+  "$(printf '%-*s' "$pw" PROJECT)" "$(printf '%-*s' $((tw + 2)) TITLE)" 'AGE '
 [ -n "$sorted" ] && printf '%s\n' "$sorted"

@@ -36,6 +36,7 @@ fzf_options="$(get_tmux_option @claude_fzf_options '')"
 # Borderless fzf: the popup border comes from the list.sh display-popup.
 sel=$("$DIR/agents.sh" | fzf --ansi \
   --delimiter='\t' --with-nth=6,7,8,9,10,11 \
+  --tabstop=1 \
   --header-lines=1 \
   --reverse --cycle \
   --preview='tmux capture-pane -e -J -p -t {2}' --preview-window='up,70%' \
