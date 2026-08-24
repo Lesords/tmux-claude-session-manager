@@ -17,15 +17,24 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Intermediate stream is |-separated: sidebar's own writer strips "|" from
 # every @pane_* value it stores (sanitize_tmux_value), so the separator is
-# guaranteed collision-free there. A repair pass afterwards folds any stray
-# tab-split fragments (prompt text) back into their field by anchoring on the
-# fixed leading/trailing columns. Rows handed to fzf are rebuilt with tabs.
+# guaranteed collision-free there. Two things still split fields: tabs in
+# @pane_prompt (sidebar strips | and \n but not \t) and "|" in a window or
+# session name (user-renamed, nobody sanitizes those). A repair pass folds
+# the stray fragments back into field 6 by anchoring on the fixed leading 5
+# and trailing 6 columns. Rows handed to fzf are rebuilt with tabs.
 stream=$(
   {
     ps -Ao pid=,tty=,comm= 2>/dev/null | awk '$3 ~ /^(claude|opencode|codex)/ { print "P\t" $1 "\t" $2 }'
     tmux list-panes -a -F '#{pane_id}|#{@pane_agent}|#{@pane_status}|#{@pane_cwd}|#{@pane_prompt}|#{@pane_started_at}|#{session_name}|#{window_name}|#{pane_tty}|#{@pane_wait_reason}|#{@pane_notification_run_id}' 2>/dev/null | tr '|' '\t' | sed $'s/^/T\t/'
-  } | awk -F'\t' -v OFS='\t' '$1 == "P" { if (NF > 3) { c = $3; for (i = 4; i <= NF; i++) c = c " " $i; $3 = c } print; next }
-       $1 == "T" { if (NF > 12) { m = $6; for (i = 7; i <= NF - 6; i++) m = m " "; $6 = m; NF = 12 } print }'
+  } | awk -F'\t' -v OFS='\t' '
+       $1 == "P" { if (NF > 3) { c = $3; for (i = 4; i <= NF; i++) c = c " " $i; $3 = c } print; next }
+       $1 == "T" {
+         if (NF > 12) {
+           head = $6;  for (i = 7; i <= NF - 6; i++) head = head " " $i
+           tail = $(NF - 5);  for (i = NF - 4; i <= NF; i++) tail = tail "\t" $i
+           $0 = $1 FS $2 FS $3 FS $4 FS $5 FS head FS tail
+         }
+         print }'
 )
 
 # Adaptive column widths: project basename (floor 7), agent name (floor 6),
