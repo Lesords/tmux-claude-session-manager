@@ -48,9 +48,12 @@ if is_popup_session "$my_session"; then
   # input (it hangs). So wait for the popup's client to leave, settle past the
   # teardown, then reopen — retrying a reopen that is rejected mid-teardown (it
   # returns almost instantly, whereas a popup that opened blocks while in use).
-  tmux detach-client -s "$my_session"
+  # Detach only the client that pressed the key; other terminals attached to
+  # the same session must survive. Then wait for that client to leave — the
+  # popup teardown race below is about this popup, not the session's clients.
+  tmux detach-client -t "$me"
   for _ in $(seq 1 100); do
-    tmux list-clients -F '#{session_name}' 2>/dev/null | grep -qx "$my_session" || break
+    tmux list-clients -F '#{client_name}' 2>/dev/null | grep -qx "$me" || break
     sleep 0.05
   done
   host="$(tmux show-options -gqv @claude_parent 2>/dev/null)"
@@ -72,7 +75,9 @@ if is_popup_session "$my_session"; then
 else
   # Normal case: this client is already the host, with no overlay to race.
   host="$me"
-  tmux set-option -g @claude_parent "$host"
+  # A manual/no-arg invocation has no client to record — keep the last parent
+  # instead of clobbering the option with an empty string.
+  [ -n "$host" ] && tmux set-option -g @claude_parent "$host"
 fi
 
 open_picker "$host"
