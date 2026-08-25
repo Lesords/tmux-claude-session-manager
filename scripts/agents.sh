@@ -63,7 +63,8 @@ cw="$(tput cols 2>/dev/null </dev/tty || tmux display-message -p '#{client_width
 win_w=$nw; [ "$win_w" -gt 20 ] && win_w=20
 [ "$win_w" -lt 6 ] && win_w=6    # never narrower than the WINDOW label itself
 if [ "$cw" -lt 9999 ]; then
-  max_win=$((cw - pw - aw - 45))    # STAT + TITLE + AGE + gaps take the rest
+  # Fixed overhead: fzf marker 2 + STAT 6 + 5 tabs + TITLE 32 + AGE 4 = 49.
+  max_win=$((cw - pw - aw - 49))
   [ "$win_w" -gt "$max_win" ] && win_w=$max_win
   [ "$win_w" -lt 8 ] && win_w=8
 fi
@@ -101,7 +102,7 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' \
     else if ($4 == "running")    { icon = "\033[33m●\033[0m \033[37mBUSY\033[0m"; rank = 1 }
     else if ($4 == "background") { icon = "\033[90m●\033[0m \033[37mBG\033[0m  "; rank = 2 }
     else if ($4 == "idle")       { icon = "\033[32m●\033[0m \033[37mIDLE\033[0m"; rank = 3 }
-    else                         { icon = "\033[90m●\033[0m \033[37m?\033[0m  "; rank = 2 }
+    else                         { icon = "\033[90m●\033[0m \033[37m?\033[0m   "; rank = 2 }
 
     # Age since the last agent event ("45s"/"5m"/"2h"); sort minutes in
     # field 5. started_at only exists mid-turn, so fall back to the
