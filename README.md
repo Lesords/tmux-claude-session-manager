@@ -28,10 +28,16 @@ the picker reads it — there are no hooks to install.
 
 - **tmux ≥ 3.2** (for `display-popup`)
 - **[fzf](https://github.com/junegunn/fzf)** — the picker UI
-- **[jq](https://jqlang.org/)** — parses `claude agents --json`
-- **[Claude Code](https://claude.com/claude-code)** ≥ 2.1.139 — for the
-  `claude agents` command (`claude --version` to check)
+- **[Claude Code](https://claude.com/claude-code)** — the sessions this plugin
+  launches
+- **GNU awk (gawk)** with a UTF-8 locale — the picker's column alignment
+  counts CJK/fullwidth characters as 2 terminal cells; byte-oriented awks
+  such as mawk miscount them
 - bash; macOS or Linux
+
+Agent status (`working` / `waiting` / `idle`) is read from the `@pane_*`
+options maintained by tmux-agent-sidebar; without that plugin the picker
+still works, but every agent shows an unknown status.
 
 ## Install (tpm)
 
