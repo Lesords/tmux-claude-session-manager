@@ -140,8 +140,8 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' \
       rank, $2, pid_of[tty], kind, mins, icon, ag, win, proj, t, dpad(disp, 4)
   }
 ' | sort -t$'\t' -k1,1n -k5,5n)
-# rank asc (what needs you floats up), then least-recently-started first within
-# each rank group ("-"/unknown sinks last at 99999).
+# rank asc (what needs you floats up), then age asc within each rank group so
+# the most recently changed pane sits on top; "-"/unknown sinks last at 99999.
 
 printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' '' '' '' '' '' '  STAT' \
   "$(printf '%-*s' "$aw" AGENT)" "$(printf '%-*s' "$win_w" WINDOW)" \
