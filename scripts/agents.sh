@@ -60,6 +60,7 @@ read -r pw nw aw < <(printf '%s\n' "$stream" | awk -F'\t' '
 # not tmux clients, #{client_width} would report the outer one). When tight,
 # WINDOW shrinks first (floor 8); unknown width (9999) skips the squeezing.
 cw="$(tput cols 2>/dev/null </dev/tty || tmux display-message -p '#{client_width}' 2>/dev/null || echo 9999)"
+case $cw in ''|*[!0-9]*) cw=9999 ;; esac    # tput may succeed yet print nothing
 win_w=$nw; [ "$win_w" -gt 20 ] && win_w=20
 [ "$win_w" -lt 6 ] && win_w=6    # never narrower than the WINDOW label itself
 if [ "$cw" -lt 9999 ]; then
