@@ -122,7 +122,7 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' \
     kind = ((index($8, prefix) == 1) ||
             (pp != "" && index($8, pp) == 1)) ? "dedicated" : "loose"
 
-    win = dpad(dcut(($9 != "") ? $9 : "-", winn - 1, "~"), winn)
+    win = dpad(dcut(($9 != "") ? $9 : "-", winn, "~"), winn)
 
     ag = "\033[38;5;173m" dpad($3, aw) "\033[0m"
 
