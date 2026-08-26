@@ -31,8 +31,9 @@ fzf_options="$(get_tmux_option @claude_fzf_options '')"
 [ -n "$fzf_options" ] && eval "extra_opts=($fzf_options)"
 
 # ctrl-x kills the agent process itself: a dedicated session dies with its last
-# window, while a loose pane keeps the shell that hosted it. The reload waits a
-# beat so the pane options reflect the kill before the list refreshes.
+# window, while a loose pane keeps the shell that hosted it. An empty pid (row
+# corrupted, or the agent exited since the listing) is a no-op. The reload waits
+# a beat so the pane options reflect the kill before the list refreshes.
 # Borderless fzf: the popup border comes from the list.sh display-popup.
 sel=$("$DIR/agents.sh" | fzf --ansi \
   --delimiter='\t' --with-nth=6,7,8,9,10,11 \
@@ -41,7 +42,7 @@ sel=$("$DIR/agents.sh" | fzf --ansi \
   --reverse --cycle \
   --preview='tmux capture-pane -e -J -p -t {2}' --preview-window='up,70%' \
   --bind='ctrl-j:preview-down,ctrl-k:preview-up' \
-  --bind="ctrl-x:execute-silent(kill {3})+reload(sleep 0.3; $self --list)" \
+  --bind="ctrl-x:execute-silent(p={3}; [ -n \"\$p\" ] && kill \"\$p\")+reload(sleep 0.3; '$self' --list)" \
   ${extra_opts[@]+"${extra_opts[@]}"})
 
 [ -z "$sel" ] && exit 0
