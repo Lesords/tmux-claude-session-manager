@@ -11,6 +11,7 @@ window="${2:-}"
 client="${3:-}"
 
 prefix="$(get_tmux_option @claude_session_prefix 'claude-')"
+pp="$(get_tmux_option @claude_popup_prefix 'floax-')"
 cmd="$(get_tmux_option @claude_command 'claude')"
 args="$(get_tmux_option @claude_args '')"
 [ -n "$args" ] && cmd="$cmd $args"
@@ -19,8 +20,13 @@ h="$(get_tmux_option @claude_popup_height '90%')"
 
 session="${prefix}$(session_hash "$path")"
 
-if [[ "$(tmux display-message -p '#S')" == "$prefix"* ]]; then
-  tmux display-message '🫪 Popup window already open'
+# One popup per client: launching from inside any popup session (ours or an
+# external tool's like floax) would replace and kill it. Empty prefixes
+# never match; same rule as list.sh's is_popup_session.
+cur_session="$(tmux display-message -p '#S')"
+if [[ ( -n "$prefix" && "$cur_session" == "$prefix"* ) ||
+      ( -n "$pp" && "$cur_session" == "$pp"* ) ]]; then
+  tmux display-message '🫪 Already inside a popup session'
   exit 0
 fi
 
