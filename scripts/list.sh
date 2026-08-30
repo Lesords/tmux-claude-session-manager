@@ -19,6 +19,12 @@ me="${1:-}"
 my_session="$(tmux list-clients -F '#{client_name} #{session_name}' 2>/dev/null |
   awk -v me="$me" '$1 == me { print $2; exit }')"
 
+# Toggle: C-M-s should close the picker if it is already open
+if pgrep -f "[p]icker\.sh" >/dev/null 2>&1; then
+  tmux display-popup -C -c "$me" 2>/dev/null || tmux display-popup -C 2>/dev/null
+  exit 0
+fi
+
 # open_picker <host> — popup on <host> (default client when empty); floax-style
 # rounded border in the theme accent (@selected). Returns display-popup status.
 open_picker() {

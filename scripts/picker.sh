@@ -42,6 +42,7 @@ sel=$("$DIR/agents.sh" | fzf --ansi \
   --reverse --cycle \
   --preview='tmux capture-pane -e -J -p -t {2}' --preview-window='up,70%' \
   --bind='ctrl-j:preview-down,ctrl-k:preview-up' \
+  --bind='ctrl-alt-s:abort' \
   --bind="ctrl-x:execute-silent(p={3}; [ -n \"\$p\" ] && kill \"\$p\")+reload(sleep 0.3; '$self' --list)" \
   ${extra_opts[@]+"${extra_opts[@]}"})
 
