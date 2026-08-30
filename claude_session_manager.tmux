@@ -10,7 +10,7 @@ CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$CURRENT_DIR/scripts/helpers.sh"
 
 launch_key="$(get_tmux_option @claude_launch_key 'y')"
-list_key="$(get_tmux_option @claude_list_key 'u')"
+list_key="$(get_tmux_option @claude_list_key 'C-M-s')"
 
 # Launch (or re-attach to) a Claude session for the current pane's directory.
 # #{pane_current_path} / #{window_id} are expanded by run-shell before the args
@@ -20,5 +20,5 @@ tmux bind-key "$launch_key" \
 
 # Open the session picker. When pressed from inside a session popup, list.sh
 # closes that popup first so the picker opens full-size on the outer client.
-tmux bind-key "$list_key" \
+tmux bind-key -n "$list_key" \
   run-shell "$CURRENT_DIR/scripts/list.sh '#{q:client_name}'"

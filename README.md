@@ -10,7 +10,7 @@ If you launch Claude per-directory (one nested session per project), you quickly
 end up with a dozen of them and no way to tell which are finished without opening
 each one. This plugin gives you:
 
-- 🔢 **A central picker** (`prefix` + `u`) listing every running Claude agent —
+- 🔢 **A central picker** (`C-M-s`) listing every running Claude agent —
   several in one project, and any running loose in an ordinary pane.
 - 🟢 **Live status** per agent — `working` / `waiting` / `idle` — read straight
   from `claude agents --json`, so you instantly see which need you. No setup.
@@ -50,7 +50,7 @@ set -g @plugin 'craftzdog/tmux-claude-session-manager'
 Then hit `prefix` + <kbd>I</kbd> to install.
 
 > **Keybinding note:** by default the plugin binds `prefix` + `y` (launch) and
-> `prefix` + `u` (list). If your config binds those elsewhere, either change the
+> `C-M-s` (list, no prefix required). If your config binds those elsewhere, either change the
 > options below, or make sure the plugin loads **after** your own bindings (put
 > `run '~/.tmux/plugins/tpm/tpm'` _after_ them) so the one you want wins.
 
@@ -71,7 +71,7 @@ run-shell ~/clone/path/claude_session_manager.tmux
 | Key            | Action                                                                          |
 | -------------- | ------------------------------------------------------------------------------- |
 | `prefix` + `y` | Launch (or re-attach to) a Claude session for the current directory, in a popup |
-| `prefix` + `u` | Open the agent picker                                                           |
+| `C-M-s`        | Open the agent picker                                                           |
 
 Inside the picker:
 
@@ -99,7 +99,7 @@ Set any of these before the plugin loads (defaults shown):
 
 ```tmux
 set -g @claude_launch_key     'y'        # prefix key: launch/open for current dir
-set -g @claude_list_key       'u'        # prefix key: open the picker
+set -g @claude_list_key       'C-M-s'    # no-prefix key: open the picker
 set -g @claude_command        'claude'   # command run in new sessions
 set -g @claude_args           ''         # extra args appended to the command
 set -g @claude_session_prefix 'claude-'  # tmux session name prefix
@@ -174,7 +174,7 @@ so tmux stores a literal `$` (in a single-quoted value, use a bare
   window it was launched from, while a **loose** one (any other pane) is focused in
   place. `ctrl-x` kills the Claude process itself: a dedicated session dies with
   its last window, and a loose pane keeps the shell that hosted it.
-- Pressing `prefix` + `u` **from inside a session popup** detaches that popup
+- Pressing `C-M-s` **from inside a session popup** detaches that popup
   first (closing it), then reopens the picker full-size on the outer host client —
   so you never end up with a cramped popup-in-popup.
 
