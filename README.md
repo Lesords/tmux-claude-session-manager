@@ -12,8 +12,9 @@ each one. This plugin gives you:
 
 - 🔢 **A central picker** (`C-M-s`) listing every running Claude agent —
   several in one project, and any running loose in an ordinary pane.
-- 🟢 **Live status** per agent — `working` / `waiting` / `idle` — read straight
-  from `claude agents --json`, so you instantly see which need you. No setup.
+- 🟢 **Live status** per agent — waiting / running / background / idle — read
+  from the `@pane_*` options that tmux-agent-sidebar maintains, so you
+  instantly see which need you.
 - 👁️ **A live preview** of each agent's screen right in the picker.
 - 🎯 **Smart jump** — selecting an agent switches your client to the window it
   was launched from, then resumes it in a popup over it.
@@ -21,8 +22,8 @@ each one. This plugin gives you:
   current directory.
 - ❌ **Quick kill** (`ctrl-x`) of a finished agent from the picker.
 
-Status needs no configuration. Claude Code publishes each agent's own state and
-the picker reads it — there are no hooks to install.
+Status needs no polling from this plugin: tmux-agent-sidebar's hooks keep each
+agent's state in tmux pane options, and the picker reads them in one call.
 
 ## Prerequisites
 
@@ -81,13 +82,14 @@ Inside the picker:
 | `ctrl-x`                  | Kill the highlighted agent                            |
 | `↑` / `↓`, type to filter | fzf navigation                                        |
 
-Agents needing your attention (`waiting`, `idle`) sort to the top.
+`waiting` agents sort to the top; `idle` ones sink to the bottom.
 
-The list styling follows tmux-scout: status tags `W:WAIT` (red — needs your
-input) / `BUSY` (yellow) / `IDLE` (blue) / `?` (grey), then AGENT (product
-name in brand color), WINDOW (tmux window name), PROJECT (directory
-basename), TITLE (agent session name) columns, a yellow `*` on the pane the
-picker was opened from, and a relative age at the end of each row.
+The list styling follows tmux-scout: a colored status dot with `WAIT` (red —
+needs your input) / `BUSY` (yellow — working) / `BG` (grey — detached
+background run) / `IDLE` (green — parked at the prompt) / `?` (grey —
+unknown), then AGENT (product name in brand color), WINDOW (tmux window
+name), PROJECT (directory basename), TITLE (last prompt or response)
+columns, and a relative age at the end of each row.
 
 Every running Claude gets its own row — the picker identifies each by its process,
 not by its tmux session. So several agents in one project all show up separately,
@@ -156,19 +158,18 @@ so tmux stores a literal `$` (in a single-quoted value, use a bare
 - The **launcher** creates a detached `claude-<hash-of-dir>` tmux session running
   `claude`, records the window it came from in `@claude_origin`, and attaches to
   it in a popup.
-- **`claude agents --json`** is the source of truth for what is running and how it
-  is doing. Each Claude session self-reports its state (`busy` / `waiting` /
-  `idle`) to a supervisor daemon, which that command publishes. Nothing here scans
-  processes for a `claude` command name — on macOS a pane reports its parent shell,
-  never the `claude` child running inside it.
-- **`agents.sh`** pairs each running Claude with the tmux pane it occupies by
-  joining `pid` → `tty` → pane. That join is why identity is the Claude _process_
-  rather than the tmux session, and therefore why several agents in one project
-  each get their own row. It costs three subprocesses per render, whatever the
-  number of sessions or panes.
-- The **age column** is the mtime of the agent's transcript — its last sign of
-  life. `claude agents --json` reports only `startedAt`, never a last-activity
-  time. A brand-new agent that has yet to take a turn shows `-`.
+- The **`@pane_*` pane options** that tmux-agent-sidebar maintains are the
+  source of truth for what is running and how it is doing: each agent's hooks
+  write `@pane_agent`, `@pane_status`, `@pane_prompt`, … straight into tmux,
+  and the picker reads them all in a single `list-panes` call.
+- **`agents.sh`** identifies agent panes by `@pane_agent` rather than by
+  scanning processes, so several agents in one project each get their own row.
+  A single `ps` sweep joins pane tty → pid only to recover the `ctrl-x` kill
+  target.
+- The **age column** is the time since the agent's last event:
+  `@pane_started_at` while mid-turn, falling back to the notification-run
+  stamp on lifecycle events — whichever is newer. A pane with neither shows
+  `-`.
 - The **picker** renders those rows with a live `capture-pane` preview. On `enter`
   a **dedicated** agent (in a `claude-*` session) resumes in the popup over the
   window it was launched from, while a **loose** one (any other pane) is focused in
