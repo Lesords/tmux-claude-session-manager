@@ -30,6 +30,27 @@ extra_opts=()
 fzf_options="$(get_tmux_option @claude_fzf_options '')"
 [ -n "$fzf_options" ] && eval "extra_opts=($fzf_options)"
 
+# fzf has no timer and popup panes are not send-keys-addressable (no
+# TMUX_PANE inside popups), so a background loop POSTs refresh-preview to
+# fzf's --listen server every N seconds. 0 disables.
+interval="$(get_tmux_option @claude_preview_refresh '0.5')"
+[[ $interval =~ ^[0-9]+([.][0-9]+)?$ ]] || interval=0.5    # junk → default
+[[ $interval =~ ^0+([.]0+)?$ ]] && interval=0              # 0 / 0.0 = off
+listen=()
+if [ "$interval" != 0 ] && command -v curl >/dev/null 2>&1; then
+  port=$((20000 + RANDOM % 12000))
+  listen=(--listen="127.0.0.1:$port")
+  ( while :; do
+      sleep "$interval"
+      [ "$PPID" -eq 1 ] && exit   # picker died without running its trap
+      curl -fs -X POST -H 'Content-Type: text/plain' \
+        --data-binary 'refresh-preview' "http://127.0.0.1:$port/" \
+        >/dev/null 2>&1 || exit
+    done ) &
+  refresher=$!
+  trap 'kill "$refresher" 2>/dev/null' EXIT INT TERM
+fi
+
 # ctrl-x kills the agent process itself: a dedicated session dies with its last
 # window, while a loose pane keeps the shell that hosted it. An empty pid (row
 # corrupted, or the agent exited since the listing) is a no-op. The reload waits
@@ -42,8 +63,10 @@ sel=$("$DIR/agents.sh" | fzf --ansi \
   --reverse --cycle \
   --preview='tmux capture-pane -e -J -p -t {2}' --preview-window='up,70%,follow' \
   --bind='ctrl-j:preview-down,ctrl-k:preview-up' \
+  --bind='ctrl-r:refresh-preview' \
   --bind='ctrl-alt-s:abort' \
   --bind="ctrl-x:execute-silent(p={3}; [ -n \"\$p\" ] && kill \"\$p\")+reload(sleep 0.3; '$self' --list)" \
+  ${listen[@]+"${listen[@]}"} \
   ${extra_opts[@]+"${extra_opts[@]}"})
 
 [ -z "$sel" ] && exit 0

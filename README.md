@@ -80,6 +80,7 @@ Inside the picker:
 | ------------------------- | ----------------------------------------------------- |
 | `enter`                   | Jump to the agent (see [How it works](#how-it-works)) |
 | `ctrl-x`                  | Kill the highlighted agent                            |
+| `ctrl-r`                  | Refresh the preview now                               |
 | `↑` / `↓`, type to filter | fzf navigation                                        |
 
 `waiting` agents sort to the top; `idle` ones sink to the bottom.
@@ -108,6 +109,7 @@ set -g @claude_session_prefix 'claude-'  # tmux session name prefix
 set -g @claude_popup_width     '90%'     # popup width (launch & picker popups)
 set -g @claude_popup_height    '90%'     # popup height (launch & picker popups)
 set -g @claude_fzf_options    ''         # extra options passed to the fzf picker
+set -g @claude_preview_refresh 0.5       # seconds between preview auto-refreshes; 0 = off
 ```
 
 The picker popup border uses `#{@selected}` when a theme plugin defines it.
