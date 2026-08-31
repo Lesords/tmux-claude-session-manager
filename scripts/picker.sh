@@ -56,11 +56,14 @@ fi
 # corrupted, or the agent exited since the listing) is a no-op. The reload waits
 # a beat so the pane options reflect the kill before the list refreshes.
 # Borderless fzf: the popup border comes from the list.sh display-popup.
-sel=$("$DIR/agents.sh" | fzf --ansi \
+# Dual mode (scheme A): enter = switch session + focus pane (legacy)
+#                       ctrl-o = popup view (swap-pane -d, host not switched)
+raw=$("$DIR/agents.sh" | fzf --ansi \
   --delimiter='\t' --with-nth=6,7,8,9,10,11 \
   --tabstop=1 \
   --header-lines=1 \
   --reverse --cycle \
+  --expect=ctrl-o \
   --preview='tmux capture-pane -e -J -p -t {2}' --preview-window='up,70%,follow' \
   --bind='ctrl-j:preview-down,ctrl-k:preview-up' \
   --bind='ctrl-r:refresh-preview' \
@@ -68,6 +71,8 @@ sel=$("$DIR/agents.sh" | fzf --ansi \
   --bind="ctrl-x:execute-silent(p={3}; [ -n \"\$p\" ] && kill \"\$p\")+reload(sleep 0.3; '$self' --list)" \
   ${listen[@]+"${listen[@]}"} \
   ${extra_opts[@]+"${extra_opts[@]}"})
+key=$(printf '%s' "$raw" | head -n1)
+sel=$(printf '%s' "$raw" | tail -n +2 | head -n1)
 
 [ -z "$sel" ] && exit 0
 pane=$(printf '%s' "$sel" | cut -f2)
@@ -76,27 +81,30 @@ kind=$(printf '%s' "$sel" | cut -f4)
 parent=$(tmux show-options -gqv @claude_parent 2>/dev/null)
 session=$(tmux display-message -p -t "$pane" '#{session_name}' 2>/dev/null)
 
-if [ "$kind" = loose ]; then
-  # Focus the pane in place on the outer client. This popup closes on its own
-  # when the script exits.
-  if [ -n "$parent" ]; then
-    tmux switch-client -c "$parent" -t "$session" 2>/dev/null
+switch_focus() {
+  if [ "$kind" = loose ]; then
+    if [ -n "$parent" ]; then
+      tmux switch-client -c "$parent" -t "$session" 2>/dev/null
+    else
+      tmux switch-client -t "$session" 2>/dev/null
+    fi
+    tmux select-window -t "$pane" 2>/dev/null
+    tmux select-pane -t "$pane" 2>/dev/null
   else
-    tmux switch-client -t "$session" 2>/dev/null
+    origin=$(tmux show-options -qv -t "$session" @claude_origin 2>/dev/null)
+    [ -n "$origin" ] && [ -n "$parent" ] &&
+      tmux switch-client -c "$parent" -t "$origin" 2>/dev/null
+    tmux switch-client -c "$parent" -t "$session" 2>/dev/null || tmux switch-client -t "$session" 2>/dev/null
+    tmux select-window -t "$pane" 2>/dev/null
+    tmux select-pane -t "$pane" 2>/dev/null
   fi
-  tmux select-window -t "$pane" 2>/dev/null
-  tmux select-pane -t "$pane" 2>/dev/null
-  exit 0
+}
+
+if [ "$key" = "ctrl-o" ]; then
+  # ctrl-o: popup view (swap-pane -d), fallback to switch
+  claude_attach_pane "$pane" "$session" 2>/dev/null && exit 0
+  switch_focus; exit 0
 fi
 
-# Move the parent client to the window the session was launched from (best-effort),
-# focus the chosen Claude's own window inside that session, then resume it in THIS
-# popup over the top. Falls back to resuming over the current window when
-# origin/parent are unknown.
-origin=$(tmux show-options -qv -t "$session" @claude_origin 2>/dev/null)
-[ -n "$origin" ] && [ -n "$parent" ] &&
-  tmux switch-client -c "$parent" -t "$origin" 2>/dev/null
-
-tmux select-window -t "$pane" 2>/dev/null
-tmux select-pane -t "$pane" 2>/dev/null
-tmux attach-session -t "$session"
+# enter: switch session + focus (legacy)
+switch_focus; exit 0

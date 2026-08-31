@@ -28,7 +28,7 @@ fi
 # open_picker <host> — popup on <host> (default client when empty); floax-style
 # rounded border in the theme accent (@selected). Returns display-popup status.
 open_picker() {
-  local title=' Claude agents · enter: jump · ctrl-x: kill · ctrl-j/k: scroll preview '
+  local title=' Claude agents · enter: jump · ctrl-o: popup · ctrl-x: kill · ctrl-j/k: scroll '
   local args=()
   [ -n "$1" ] && args+=(-c "$1")
   tmux display-popup "${args[@]}" -w "$w" -h "$h" -b rounded -S 'fg=#{@selected}' -s 'fg=default' -T "$title" -E "$DIR/picker.sh"
