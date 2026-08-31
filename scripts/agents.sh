@@ -43,11 +43,14 @@ stream=$(
 # short and skew every column to the right.
 tw=30
 read -r pw nw aw < <(printf '%s\n' "$stream" | awk -F'\t' '
+  # Wide = CJK/fullwidth/hangul + emoji U+1F300–U+1F9FF + common BMP-wide
+  # symbols (✅❌❓…, singles). gawk regex has no \u escapes, so the range
+  # endpoints must be the literal boundary characters.
   function dwidth(s,   i, n, w, c) {          # terminal cells a string occupies
     w = 0; n = length(s)
     for (i = 1; i <= n; i++) {
       c = substr(s, i, 1)
-      w += (c ~ /[　-〿ぁ-ヿ一-鿿㐀-䶿가-힣豈-﫻！-｠]/) ? 2 : 1
+      w += (c ~ /[　-〿ぁ-ヿ一-鿿㐀-䶿가-힣豈-﫻！-｠🌀-🧿✅❌❓❔❗⭐✨⚡⏰⏳➕➖⛔⚪⚫☕✊✋☔⛄]/) ? 2 : 1
     }
     return w
   }
@@ -75,8 +78,9 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' \
   -v prefix="$(get_tmux_option @claude_session_prefix 'claude-')" \
   -v pp="$(get_tmux_option @claude_popup_prefix 'floax-')" '
   # Display-width helpers: CJK/fullwidth chars fill 2 terminal cells, so all
-  # column math below runs on cells, not characters.
-  function dwc(c) { return (c ~ /[　-〿ぁ-ヿ一-鿿㐀-䶿가-힣豈-﫻！-｠]/) ? 2 : 1 }
+  # column math below runs on cells, not characters. Same class as dwidth
+  # above: CJK/fullwidth/hangul + emoji U+1F300–U+1F9FF, literal endpoints.
+  function dwc(c) { return (c ~ /[　-〿ぁ-ヿ一-鿿㐀-䶿가-힣豈-﫻！-｠🌀-🧿✅❌❓❔❗⭐✨⚡⏰⏳➕➖⛔⚪⚫☕✊✋☔⛄]/) ? 2 : 1 }
   function dwidth(s,   i, n, w) { w = 0; n = length(s)
     for (i = 1; i <= n; i++) w += dwc(substr(s, i, 1)); return w }
   function dpad(s, w,   k) { k = w - dwidth(s); while (k-- > 0) s = s " "; return s }
