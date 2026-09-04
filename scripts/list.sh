@@ -5,6 +5,51 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=helpers.sh
 . "$DIR/helpers.sh"
 
+# Reclaim panes stranded in clientless __claude_view_* sessions by a picker
+# killed mid-view: swap back into the tombstone slot (its command line embeds
+# the pane id), or break out as a new window if the tombstone is gone. Kill
+# only after the pane is confirmed out — a race must displace, never destroy.
+sweep_orphan_views() {
+  local vs kid ph_pid ph target="${1:-}"
+  for vs in $(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep '^__claude_view_'); do
+    # list-clients exits 0 even with no clients attached — test the output.
+    [ -n "$(tmux list-clients -t "=$vs" 2>/dev/null)" ] && continue    # actively viewed
+    kid=$(tmux list-panes -t "=$vs" -F '#{pane_id}' 2>/dev/null | head -1)
+    ph_pid=$(pgrep -f "placeholder $kid\$" 2>/dev/null | head -1)
+    ph=''
+    [ -n "$ph_pid" ] &&
+      ph=$(tmux list-panes -a -F '#{pane_id} #{pane_pid}' 2>/dev/null |
+        awk -v p="$ph_pid" '$2 == p { print $1; exit }')
+    if [ -n "$ph" ]; then
+      if tmux swap-pane -d -s "$kid" -t "$ph" 2>/dev/null; then
+        tmux display-message "claude: restored pane $kid from an interrupted popup view" 2>/dev/null
+      else
+        claude_dbg "sweep $vs: swap-back to $ph failed, left for retry"
+        continue
+      fi
+    elif [ -n "$kid" ] && [ -n "$target" ]; then
+      tmux break-pane -d -s "$kid" -t "=$target:" 2>/dev/null &&
+        tmux display-message "claude: pane $kid recovered as a new window" 2>/dev/null
+    elif [ -z "$kid" ]; then
+      tmux kill-session -t "=$vs" 2>/dev/null    # empty husk
+    else
+      claude_dbg "sweep $vs: no tombstone and no target session, left for retry"
+      continue
+    fi
+    # A racing sweep may have swapped the pane back in between our restore
+    # and this kill — only kill once the pane is confirmed out.
+    tmux list-panes -t "=$vs" -F '#{pane_id}' 2>/dev/null | grep -qx "$kid" ||
+      tmux kill-session -t "=$vs" 2>/dev/null
+    claude_dbg "sweep $vs: pane=${kid:-none} tombstone=${ph:-gone}"
+  done
+}
+
+# Manual recovery entry — safe next to a live picker (attached views are skipped).
+if [ "${1:-}" = '--sweep' ]; then
+  sweep_orphan_views "$(tmux display-message -p '#{session_name}' 2>/dev/null)"
+  exit 0
+fi
+
 prefix="$(get_tmux_option @claude_session_prefix 'claude-')"
 popup_prefix="$(get_tmux_option @claude_popup_prefix 'floax-')"
 w="$(get_tmux_option @claude_popup_width '90%')"
@@ -24,6 +69,9 @@ if pgrep -f "[p]icker\.sh" >/dev/null 2>&1; then
   tmux display-popup -C -c "$me" 2>/dev/null || tmux display-popup -C 2>/dev/null
   exit 0
 fi
+
+# No picker alive → any view leftovers are orphans; reclaim before opening.
+sweep_orphan_views "$my_session"
 
 # open_picker <host> — popup on <host> (default client when empty); floax-style
 # rounded border in the theme accent (@selected). Returns display-popup status.

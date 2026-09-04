@@ -110,6 +110,7 @@ set -g @claude_popup_width     '90%'     # popup width (launch & picker popups)
 set -g @claude_popup_height    '90%'     # popup height (launch & picker popups)
 set -g @claude_fzf_options    ''         # extra options passed to the fzf picker
 set -g @claude_preview_refresh 0.5       # seconds between preview auto-refreshes; 0 = off
+set -g @claude_debug          ''         # any non-empty value logs to /tmp/claude-session-manager.log
 ```
 
 The picker popup border uses `#{@selected}` when a theme plugin defines it.

@@ -102,7 +102,9 @@ switch_focus() {
 
 if [ "$key" = "ctrl-o" ]; then
   # ctrl-o: popup view (swap-pane -d), fallback to switch
-  claude_attach_pane "$pane" "$session" 2>/dev/null && exit 0
+  if claude_attach_pane "$pane" "$session"; then exit 0; fi
+  claude_dbg "ctrl-o view failed for $pane (session '$session'), falling back to switch"
+  tmux display-message "claude: popup view failed — switching to the session instead" 2>/dev/null
   switch_focus; exit 0
 fi
 
