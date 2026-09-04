@@ -40,9 +40,15 @@ claude_dbg() {
 }
 
 # view helpers — popup-only panel attach via swap-pane -d
+# Pane liveness: display-message exits 0 even when the target pane does not
+# resolve (the error only reaches stderr), so scan the pane list instead.
+claude_pane_alive() {
+  tmux list-panes -a -F '#{pane_id}' 2>/dev/null | grep -qx "$1"
+}
+
 claude_attach_pane() {
   local pane="$1" session="$2"
-  tmux display-message -p -t "$pane" '#{pane_id}' >/dev/null 2>&1 || return 1
+  claude_pane_alive "$pane" || return 1
   # Already open in another popup view: a second swap would tangle the chains.
   case "$(tmux display-message -p -t "$pane" '#{session_name}' 2>/dev/null)" in
     __claude_view_*)
@@ -65,6 +71,13 @@ claude_attach_pane() {
   tmux swap-pane -d -s "$pane" -t "$ph" 2>/dev/null || { tmux kill-session -t "=$view" 2>/dev/null; return 1; }
   claude_dbg "view $view opened: pane $pane <-> tombstone $ph (from session '$session')"
 
+  # A dedicated key table gives the view its own shortcuts; every unbound
+  # key still reaches the pane. The tmux prefix is unavailable inside the
+  # view — C-g is the way out.
+  tmux set-option -t "$view" key-table csview
+  tmux bind-key -T csview C-g detach-client
+  tmux bind-key -T csview C-M-x run-shell 'kill #{pane_pid}'
+
   # The trap also restores when the popup dies with the picker (tmux calls
   # need no tty); restored/signalled keep the two paths from double-running
   # and skip the fallback switch after a signal.
@@ -73,10 +86,15 @@ claude_attach_pane() {
     [ "$restored" -eq 1 ] && return 0
     restored=1
     if ! tmux swap-pane -d -s "$pane" -t "$ph" 2>/dev/null; then
-      # Tombstone closed while viewing: back as a new window.
-      if tmux break-pane -d -s "$pane" -t "=$session:" 2>/dev/null; then
+      if tmux break-pane -d -s "$pane" -t "$session:" 2>/dev/null; then
+        # tombstone closed while viewing: back as a new window
         tmux display-message "claude: popup-view pane restored as a new window" 2>/dev/null
         claude_dbg "restore: tombstone gone, $pane broken out as a new window"
+      elif ! claude_pane_alive "$pane"; then
+        # the agent exited (or was killed with C-M-x) while viewing:
+        # nothing to return, just drop the tombstone
+        tmux kill-pane -t "$ph" 2>/dev/null
+        claude_dbg "restore: pane gone, tombstone $ph removed"
       else
         claude_dbg "restore: could not return $pane (session '$session' gone?)"
       fi
@@ -90,5 +108,8 @@ claude_attach_pane() {
   trap - HUP INT TERM
   _ca_restore
   [ "$signalled" -eq 1 ] && return 0
+  # the agent exiting while viewed (or killed with C-M-x) is a clean
+  # outcome, not a failure — don't trigger the switch fallback
+  claude_pane_alive "$pane" || rc=0
   return $rc
 }

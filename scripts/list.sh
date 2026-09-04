@@ -28,7 +28,7 @@ sweep_orphan_views() {
         continue
       fi
     elif [ -n "$kid" ] && [ -n "$target" ]; then
-      tmux break-pane -d -s "$kid" -t "=$target:" 2>/dev/null &&
+      tmux break-pane -d -s "$kid" -t "$target:" 2>/dev/null &&
         tmux display-message "claude: pane $kid recovered as a new window" 2>/dev/null
     elif [ -z "$kid" ]; then
       tmux kill-session -t "=$vs" 2>/dev/null    # empty husk

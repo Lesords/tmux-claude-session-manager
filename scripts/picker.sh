@@ -101,8 +101,10 @@ switch_focus() {
 }
 
 if [ "$key" = "ctrl-o" ]; then
-  # ctrl-o: popup view (swap-pane -d), fallback to switch
-  if claude_attach_pane "$pane" "$session"; then exit 0; fi
+  # ctrl-o: popup view (swap-pane -d), fallback to switch. When the view
+  # closes (C-g or detach) the picker re-execs itself — same popup, fresh
+  # list — so the picker behaves like a hub instead of one-shot.
+  if claude_attach_pane "$pane" "$session"; then exec "$self"; fi
   claude_dbg "ctrl-o view failed for $pane (session '$session'), falling back to switch"
   tmux display-message "claude: popup view failed — switching to the session instead" 2>/dev/null
   switch_focus; exit 0

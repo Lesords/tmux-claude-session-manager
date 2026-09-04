@@ -79,9 +79,20 @@ Inside the picker:
 | Key                       | Action                                                |
 | ------------------------- | ----------------------------------------------------- |
 | `enter`                   | Jump to the agent (see [How it works](#how-it-works)) |
+| `ctrl-o`                  | View the agent in a popup over the current session    |
 | `ctrl-x`                  | Kill the highlighted agent                            |
 | `ctrl-r`                  | Refresh the preview now                               |
 | `↑` / `↓`, type to filter | fzf navigation                                        |
+
+Inside a popup view (`ctrl-o`):
+
+| Key      | Action                                            |
+| -------- | ------------------------------------------------- |
+| `C-g`    | Close the view and return to the picker           |
+| `C-M-x`  | Kill the agent (same as `ctrl-x` in the picker)   |
+
+The view is a temporary swap-pane session, so tmux prefix commands do not
+work inside it — use `C-g` to go back.
 
 `waiting` agents sort to the top; `idle` ones sink to the bottom.
 
