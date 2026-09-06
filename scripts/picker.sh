@@ -68,7 +68,7 @@ raw=$("$DIR/agents.sh" | fzf --ansi \
   --bind='ctrl-j:preview-down,ctrl-k:preview-up' \
   --bind='ctrl-r:refresh-preview' \
   --bind='ctrl-alt-s:abort' \
-  --bind="ctrl-x:execute-silent(p={3}; [ -n \"\$p\" ] && kill \"\$p\")+reload(sleep 0.3; '$self' --list)" \
+  --bind="ctrl-x:execute-silent([ -n \"{3}\" ] && { kill \"{3}\" 2>/dev/null; tmux set-option -t {2} -p -u @pane_agent; })+reload(sleep 0.3; '$self' --list)" \
   ${listen[@]+"${listen[@]}"} \
   ${extra_opts[@]+"${extra_opts[@]}"})
 key=$(printf '%s' "$raw" | head -n1)

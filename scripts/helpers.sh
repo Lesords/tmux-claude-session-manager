@@ -76,9 +76,9 @@ claude_attach_pane() {
   # view — C-g is the way out.
   tmux set-option -t "$view" key-table csview
   tmux bind-key -T csview C-g detach-client
-  # C-M-x kills the agent pid (same source as ctrl-x); #{pane_pid} is only the pane shell.
+  # C-M-x kills the agent pid, not #{pane_pid} (only the pane shell).
   if [ -n "$apid" ]; then
-    tmux bind-key -T csview C-M-x run-shell "kill $apid"
+    tmux bind-key -T csview C-M-x run-shell "if kill $apid 2>/dev/null; then tmux set-option -t '#{pane_id}' -p -u @pane_agent; tmux detach-client -t '#{client_name}' 2>/dev/null || tmux display-popup -C 2>/dev/null; else tmux display-message 'claude: kill failed'; fi"
   else
     tmux bind-key -T csview C-M-x run-shell "tmux display-message 'claude: no agent to kill'"
   fi
