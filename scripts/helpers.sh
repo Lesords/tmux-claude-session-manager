@@ -82,6 +82,10 @@ claude_attach_pane() {
   else
     tmux bind-key -T csview C-M-x run-shell "tmux display-message 'claude: no agent to kill'"
   fi
+  # Mirror the configured list key into csview (root bindings are invisible
+  # here); the popup to close lives on the parent client, not this one.
+  local list_key="$(get_tmux_option @claude_list_key 'C-M-s')"
+  tmux bind-key -T csview "$list_key" run-shell "tmux display-popup -C -c \"\$(tmux show-options -gqv @claude_parent)\" 2>/dev/null || tmux display-popup -C 2>/dev/null"
 
   # The trap also restores when the popup dies with the picker (tmux calls
   # need no tty); restored/signalled keep the two paths from double-running

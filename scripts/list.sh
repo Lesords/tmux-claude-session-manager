@@ -80,6 +80,10 @@ open_picker() {
   local args=()
   [ -n "$1" ] && args+=(-c "$1")
   tmux display-popup "${args[@]}" -w "$w" -h "$h" -b rounded -S 'fg=#{@selected}' -s 'fg=default' -T "$title" -E "$DIR/picker.sh"
+  local rc=$?
+  # 129 = SIGHUP: our own toggle/quit closed the popup externally, not a failure.
+  [ "$rc" -eq 129 ] && return 0
+  return "$rc"
 }
 
 # A popup-style session: the launcher's `claude-` prefix or an external popup
