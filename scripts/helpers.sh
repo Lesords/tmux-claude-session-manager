@@ -47,7 +47,7 @@ claude_pane_alive() {
 }
 
 claude_attach_pane() {
-  local pane="$1" session="$2"
+  local pane="$1" session="$2" apid="${3:-}"
   claude_pane_alive "$pane" || return 1
   # Already open in another popup view: a second swap would tangle the chains.
   case "$(tmux display-message -p -t "$pane" '#{session_name}' 2>/dev/null)" in
@@ -76,7 +76,12 @@ claude_attach_pane() {
   # view — C-g is the way out.
   tmux set-option -t "$view" key-table csview
   tmux bind-key -T csview C-g detach-client
-  tmux bind-key -T csview C-M-x run-shell 'kill #{pane_pid}'
+  # C-M-x kills the agent pid (same source as ctrl-x); #{pane_pid} is only the pane shell.
+  if [ -n "$apid" ]; then
+    tmux bind-key -T csview C-M-x run-shell "kill $apid"
+  else
+    tmux bind-key -T csview C-M-x run-shell "tmux display-message 'claude: no agent to kill'"
+  fi
 
   # The trap also restores when the popup dies with the picker (tmux calls
   # need no tty); restored/signalled keep the two paths from double-running

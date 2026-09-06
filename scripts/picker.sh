@@ -76,6 +76,7 @@ sel=$(printf '%s' "$raw" | tail -n +2 | head -n1)
 
 [ -z "$sel" ] && exit 0
 pane=$(printf '%s' "$sel" | cut -f2)
+apid=$(printf '%s' "$sel" | cut -f3)
 kind=$(printf '%s' "$sel" | cut -f4)
 
 parent=$(tmux show-options -gqv @claude_parent 2>/dev/null)
@@ -104,7 +105,7 @@ if [ "$key" = "ctrl-o" ]; then
   # ctrl-o: popup view (swap-pane -d), fallback to switch. When the view
   # closes (C-g or detach) the picker re-execs itself — same popup, fresh
   # list — so the picker behaves like a hub instead of one-shot.
-  if claude_attach_pane "$pane" "$session"; then exec "$self"; fi
+  if claude_attach_pane "$pane" "$session" "$apid"; then exec "$self"; fi
   claude_dbg "ctrl-o view failed for $pane (session '$session'), falling back to switch"
   tmux display-message "claude: popup view failed — switching to the session instead" 2>/dev/null
   switch_focus; exit 0
