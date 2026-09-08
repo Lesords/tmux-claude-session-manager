@@ -73,9 +73,9 @@ claude_attach_pane() {
 
   # A dedicated key table gives the view its own shortcuts; every unbound
   # key still reaches the pane. The tmux prefix is unavailable inside the
-  # view — C-g is the way out.
+  # view — C-q is the way out.
   tmux set-option -t "$view" key-table csview
-  tmux bind-key -T csview C-g detach-client
+  tmux bind-key -T csview C-q detach-client
   # C-M-x kills the agent pid, not #{pane_pid} (only the pane shell).
   if [ -n "$apid" ]; then
     tmux bind-key -T csview C-M-x run-shell "if kill $apid 2>/dev/null; then tmux set-option -t '#{pane_id}' -p -u @pane_agent; tmux detach-client -t '#{client_name}' 2>/dev/null || tmux display-popup -C 2>/dev/null; else tmux display-message 'claude: kill failed'; fi"

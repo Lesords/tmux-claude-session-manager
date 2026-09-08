@@ -88,12 +88,12 @@ Inside a popup view (`ctrl-o`):
 
 | Key      | Action                                            |
 | -------- | ------------------------------------------------- |
-| `C-g`    | Close the view and return to the picker           |
+| `C-q`    | Close the view and return to the picker           |
 | `C-M-x`  | Kill the agent (same as `ctrl-x` in the picker)   |
 | `C-M-s`  | Close the view and the picker (agent keeps running) |
 
 The view is a temporary swap-pane session, so the tmux prefix and any other
-root-table bindings do not work inside it — use `C-g` to go back.
+root-table bindings do not work inside it — use `C-q` to go back.
 
 `waiting` agents sort to the top; `idle` ones sink to the bottom.
 
