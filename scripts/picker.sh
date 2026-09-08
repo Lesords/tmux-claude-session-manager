@@ -37,18 +37,24 @@ interval="$(get_tmux_option @claude_preview_refresh '0.5')"
 [[ $interval =~ ^[0-9]+([.][0-9]+)?$ ]] || interval=0.5    # junk → default
 [[ $interval =~ ^0+([.]0+)?$ ]] && interval=0              # 0 / 0.0 = off
 listen=()
+# Reading mode: scrolling raises a flag the refresher respects; ctrl-r clears
+# it. Fixed path — removed at startup and exit, and cleared by the next
+# instance after the exec-restart below.
+pause_flag='/tmp/.claude-picker-pause'
+rm -f "$pause_flag"
 if [ "$interval" != 0 ] && command -v curl >/dev/null 2>&1; then
   port=$((20000 + RANDOM % 12000))
   listen=(--listen="127.0.0.1:$port")
   ( while :; do
       sleep "$interval"
       [ "$PPID" -eq 1 ] && exit   # picker died without running its trap
+      [ -e "$pause_flag" ] && continue
       curl -fs -X POST -H 'Content-Type: text/plain' \
         --data-binary 'refresh-preview' "http://127.0.0.1:$port/" \
         >/dev/null 2>&1 || exit
     done ) &
   refresher=$!
-  trap 'kill "$refresher" 2>/dev/null' EXIT INT TERM
+  trap 'kill "$refresher" 2>/dev/null; rm -f "$pause_flag"' EXIT INT TERM
 fi
 
 # ctrl-x kills the agent process itself: a dedicated session dies with its last
@@ -58,6 +64,7 @@ fi
 # Borderless fzf: the popup border comes from the list.sh display-popup.
 # Dual mode (scheme A): enter = switch session + focus pane (legacy)
 #                       ctrl-o = popup view (swap-pane -d, host not switched)
+# Scrolling pauses the auto-refresh (read the history); ctrl-r resumes it.
 raw=$("$DIR/agents.sh" | fzf --ansi \
   --delimiter='\t' --with-nth=6,7,8,9,10,11 \
   --tabstop=1 \
@@ -65,8 +72,9 @@ raw=$("$DIR/agents.sh" | fzf --ansi \
   --reverse --cycle \
   --expect=ctrl-o \
   --preview='tmux capture-pane -e -J -p -t {2}' --preview-window='up,70%,follow' \
-  --bind='ctrl-j:preview-down,ctrl-k:preview-up' \
-  --bind='ctrl-r:refresh-preview' \
+  --bind="ctrl-j:preview-down+execute-silent(touch '$pause_flag')" \
+  --bind="ctrl-k:preview-up+execute-silent(touch '$pause_flag')" \
+  --bind="ctrl-r:refresh-preview+execute-silent(rm -f '$pause_flag')" \
   --bind='ctrl-alt-s:abort' \
   --bind="ctrl-x:execute-silent([ -n \"{3}\" ] && { kill \"{3}\" 2>/dev/null; tmux set-option -t {2} -p -u @pane_agent; })+reload(sleep 0.3; '$self' --list)" \
   ${listen[@]+"${listen[@]}"} \

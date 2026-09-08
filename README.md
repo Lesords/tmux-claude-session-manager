@@ -81,7 +81,8 @@ Inside the picker:
 | `enter`                   | Jump to the agent (see [How it works](#how-it-works)) |
 | `ctrl-o`                  | View the agent in a popup over the current session    |
 | `ctrl-x`                  | Kill the highlighted agent                            |
-| `ctrl-r`                  | Refresh the preview now                               |
+| `ctrl-j` / `ctrl-k`        | Scroll the preview (pauses auto-refresh)             |
+| `ctrl-r`                  | Refresh the preview and resume auto-refresh          |
 | `↑` / `↓`, type to filter | fzf navigation                                        |
 
 Inside a popup view (`ctrl-o`):
