@@ -73,10 +73,20 @@ if [ "$cw" -lt 9999 ]; then
   [ "$win_w" -lt 8 ] && win_w=8
 fi
 
+# pane_id -> foreground command, a side channel for the stale check below
+# (process names have no spaces, so a flat "id=cmd" list is safe to pass in).
+# stale_panes collects panes whose agent exited while its options lingered.
+cmdmap="$(tmux list-panes -a -F '#{pane_id}=#{pane_current_command}' 2>/dev/null | tr '\n' ' ')"
+stale_panes="/tmp/.claude-stale-agents.$$"
+trap 'rm -f "$stale_panes"' EXIT
+
 sorted=$(printf '%s\n' "$stream" | awk -F'\t' \
   -v now="$(date +%s)" -v home="$HOME" -v pw="$pw" -v tw="$tw" -v winn="$win_w" -v aw="$aw" \
   -v prefix="$(get_tmux_option @claude_session_prefix 'claude-')" \
-  -v pp="$(get_tmux_option @claude_popup_prefix 'floax-')" '
+  -v pp="$(get_tmux_option @claude_popup_prefix 'floax-')" \
+  -v cmdmap="$cmdmap" -v stalef="$stale_panes" '
+  BEGIN { n = split(cmdmap, kv, " ")
+          for (i = 1; i <= n; i++) { split(kv[i], pr, "="); fgcmd[pr[1]] = pr[2] } }
   # Display-width helpers: CJK/fullwidth chars fill 2 terminal cells, so all
   # column math below runs on cells, not characters. Same class as dwidth
   # above: CJK/fullwidth/hangul + emoji U+1F300–U+1F9FF, literal endpoints.
@@ -98,6 +108,16 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' \
   $1 == "T" {
     if ($3 == "") next                        # not an agent pane
     tty = $10; sub(/^\/dev\//, "", tty)
+
+    # Stale: the agent process is gone (no live match on this tty) and the
+    # pane is back at a plain shell — the options lingered after a natural
+    # exit. Drop the row; the caller unsets the lingering options.
+    if (!(tty in pid_of) &&
+        (fgcmd[$2] == "bash" || fgcmd[$2] == "zsh" || fgcmd[$2] == "sh" ||
+         fgcmd[$2] == "dash" || fgcmd[$2] == "fish")) {
+      print $2 > stalef
+      next
+    }
 
     # Status: colored dot + white label (red = needs you, yellow = working,
     # grey = detached background run, green = parked at the prompt).
@@ -147,6 +167,17 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' \
 ' | sort -t$'\t' -k1,1n -k5,5n)
 # rank asc (what needs you floats up), then age asc within each rank group so
 # the most recently changed pane sits on top; "-"/unknown sinks last at 99999.
+
+# Self-heal the stale panes found above so their rows stay gone.
+if [ -s "$stale_panes" ]; then
+  while IFS= read -r sp; do
+    for opt in @pane_agent @pane_status @pane_cwd @pane_prompt \
+               @pane_started_at @pane_wait_reason @pane_notification_run_id; do
+      tmux set-option -t "$sp" -p -u "$opt" 2>/dev/null
+    done
+  done < "$stale_panes"
+fi
+rm -f "$stale_panes"
 
 printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' '' '' '' '' '' '  STAT' \
   "$(printf '%-*s' "$aw" AGENT)" "$(printf '%-*s' "$win_w" WINDOW)" \
