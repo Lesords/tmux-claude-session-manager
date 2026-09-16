@@ -59,8 +59,10 @@ fi
 
 # ctrl-x kills the agent process itself: a dedicated session dies with its last
 # window, while a loose pane keeps the shell that hosted it. An empty pid (row
-# corrupted, or the agent exited since the listing) is a no-op. The reload waits
-# a beat so the pane options reflect the kill before the list refreshes.
+# corrupted, or the agent exited since the listing) is a no-op, and so is a
+# failed kill — the row and its option stay (same contract as C-M-x in the
+# popup view). The reload waits a beat so the pane options reflect the kill
+# before the list refreshes.
 # Borderless fzf: the popup border comes from the list.sh display-popup.
 # Dual mode (scheme A): enter = switch session + focus pane (legacy)
 #                       ctrl-o = popup view (swap-pane -d, host not switched)
@@ -76,7 +78,7 @@ raw=$("$DIR/agents.sh" | fzf --ansi \
   --bind="ctrl-k:preview-up+execute-silent(touch '$pause_flag')" \
   --bind="ctrl-r:refresh-preview+execute-silent(rm -f '$pause_flag')" \
   --bind='ctrl-alt-s:abort' \
-  --bind="ctrl-x:execute-silent([ -n \"{3}\" ] && { kill \"{3}\" 2>/dev/null; tmux set-option -t {2} -p -u @pane_agent; })+reload(sleep 0.3; '$self' --list)" \
+  --bind="ctrl-x:execute-silent([ -n {3} ] && { kill {3} 2>/dev/null && tmux set-option -t {2} -p -u @pane_agent || tmux display-message 'claude: kill failed'; })+reload(sleep 0.3; '$self' --list)" \
   ${listen[@]+"${listen[@]}"} \
   ${extra_opts[@]+"${extra_opts[@]}"})
 key=$(printf '%s' "$raw" | head -n1)
