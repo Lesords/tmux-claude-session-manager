@@ -102,7 +102,8 @@ The list styling follows tmux-scout: a colored status dot with `WAIT` (red —
 needs your input) / `BUSY` (yellow — working) / `BG` (grey — detached
 background run) / `IDLE` (green — parked at the prompt) / `?` (grey —
 unknown), then AGENT (product name in brand color), WINDOW (tmux window
-name), PROJECT (directory basename), TITLE (last prompt or response)
+name), PROJECT (directory basename), TITLE (Claude's own session title —
+custom or AI-generated — falling back to the last prompt or response)
 columns, and a relative age at the end of each row.
 
 Every running Claude gets its own row — the picker identifies each by its process,
@@ -182,6 +183,10 @@ so tmux stores a literal `$` (in a single-quoted value, use a bare
   scanning processes, so several agents in one project each get their own row.
   A single `ps` sweep joins pane tty → pid only to recover the `ctrl-x` kill
   target.
+- The **TITLE column** prefers Claude's own session title (custom, then
+  AI-generated): `~/.claude/sessions/<pid>.json` maps each live agent to its
+  exact session file, whose tail carries the latest title. Codex/opencode and
+  un-titled sessions fall back to the sidebar's last prompt/response.
 - The **age column** is the time since the agent's last event:
   `@pane_started_at` while mid-turn, falling back to the notification-run
   stamp on lifecycle events — whichever is newer. A pane with neither shows

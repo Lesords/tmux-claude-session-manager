@@ -77,16 +77,46 @@ fi
 # (process names have no spaces, so a flat "id=cmd" list is safe to pass in).
 # stale_panes collects panes whose agent exited while its options lingered.
 cmdmap="$(tmux list-panes -a -F '#{pane_id}=#{pane_current_command}' 2>/dev/null | tr '\n' ' ')"
+
+# Session titles: ~/.claude/sessions/<pid>.json maps each live claude to its
+# exact session file (procStart cross-checked against /proc to reject a reused
+# pid); the last custom-/ai-title in its tail names the row. Claude only —
+# other agents keep the @pane_prompt path.
+title_file="/tmp/.claude-agent-titles.$$"
+: >"$title_file"
+if [ -d "$HOME/.claude/sessions" ]; then
+  while IFS=$'\t' read -r pane pid; do
+    sj="$HOME/.claude/sessions/$pid.json"
+    [ -r "$sj" ] || continue
+    meta=$(grep -o '"procStart":"[0-9]*"\|"sessionId":"[0-9a-f-]*"' "$sj")
+    pstart=${meta#*'"procStart":"'}; pstart=${pstart%%'"'*}
+    sid=${meta#*'"sessionId":"'}; sid=${sid%%'"'*}
+    [ -n "$sid" ] || continue
+    [ "$pstart" = "$(awk '{print $22}' "/proc/$pid/stat" 2>/dev/null)" ] || continue
+    set -- "$HOME"/.claude/projects/*/"$sid.jsonl"
+    [ -e "$1" ] || continue
+    t=$(tail -c 65536 "$1" | awk '
+      /"type":"custom-title"/ { if (match($0, /"customTitle":"[^"]*"/)) c = substr($0, RSTART + 15, RLENGTH - 16) }
+      /"type":"ai-title"/     { if (match($0, /"aiTitle":"[^"]*"/))     a = substr($0, RSTART + 11, RLENGTH - 12) }
+      END { print c != "" ? c : a }')
+    [ -n "$t" ] && printf '%s\t%s\n' "$pane" "${t//$'\t'/ }" >>"$title_file"
+  done < <(printf '%s\n' "$stream" | awk -F'\t' '
+    $1 == "P" { if (!($3 in pid_of)) pid_of[$3] = $2; next }
+    $1 == "T" && $3 != "" { tty = $10; sub(/^\/dev\//, "", tty)
+                            if (tty in pid_of) print $2 "\t" pid_of[tty] }')
+fi
+
 stale_panes="/tmp/.claude-stale-agents.$$"
-trap 'rm -f "$stale_panes"' EXIT
+trap 'rm -f "$stale_panes" "$title_file"' EXIT
 
 sorted=$(printf '%s\n' "$stream" | awk -F'\t' \
   -v now="$(date +%s)" -v home="$HOME" -v pw="$pw" -v tw="$tw" -v winn="$win_w" -v aw="$aw" \
   -v prefix="$(get_tmux_option @claude_session_prefix 'claude-')" \
   -v pp="$(get_tmux_option @claude_popup_prefix 'floax-')" \
-  -v cmdmap="$cmdmap" -v stalef="$stale_panes" '
+  -v cmdmap="$cmdmap" -v stalef="$stale_panes" -v titlef="$title_file" '
   BEGIN { n = split(cmdmap, kv, " ")
-          for (i = 1; i <= n; i++) { split(kv[i], pr, "="); fgcmd[pr[1]] = pr[2] } }
+          for (i = 1; i <= n; i++) { split(kv[i], pr, "="); fgcmd[pr[1]] = pr[2] }
+          while ((getline tl < titlef) > 0) { split(tl, tp, "\t"); title_of[tp[1]] = tp[2] } }
   # Display-width helpers: CJK/fullwidth chars fill 2 terminal cells, so all
   # column math below runs on cells, not characters. Same class as dwidth
   # above: CJK/fullwidth/hangul + emoji U+1F300–U+1F9FF, literal endpoints.
@@ -154,12 +184,14 @@ sorted=$(printf '%s\n' "$stream" | awk -F'\t' \
     if (index(path, home) == 1) path = "~" substr(path, length(home) + 1)
     proj = dpad(pseg[split(path, pseg, "/")], pw)
 
-    # Title: last prompt/response; fall back to the wait reason ("session_resumed")
-    # for resumed sessions that never recorded one.
-    t = $6; gsub(/[\t\n\r]/, " ", t)
+    # Title: the AI/custom session title; fall back to the last prompt or
+    # response, then the wait reason ("session_resumed") for resumed
+    # sessions that never recorded one.
+    t = title_of[$2]
+    if (t == "") { t = $6; gsub(/[\t\n\r]/, " ", t) }
     if (t == "") { t = $11; gsub(/[\t\n\r]/, " ", t) }
     if (t == "") t = "-"
-    t = "\033[2m\"" dpad(dcut(t, tw - 3, "..."), tw) "\"\033[0m"
+    t = "\033[2m\"" dpad(dcut(t, tw, "..."), tw) "\"\033[0m"
 
     printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t\033[37m%s\033[0m\t\033[37m%s\033[0m\t%s\t\033[2m%s\033[0m\n",
       rank, $2, pid_of[tty], kind, mins, icon, ag, win, proj, t, dpad(disp, 4)
